@@ -1,0 +1,45 @@
+{
+  "downloaded_at_utc": "2026-11-06T18:23:50.443840+00:00",
+  "repositories": [
+    {
+      "name": "GalbotSDK",
+      "url": "https://github.com/GalaxyGeneralRobotics/GalbotSDK.git",
+      "commit": "369179456e6212644d13ba06e7ba5ec187f7204a",
+      "checkout": "external/GalbotSDK",
+      "total_bytes_including_git": 1341582084,
+      "tracked_files": 53242,
+      "license_sha256": "b866ab6ab60506569480fd4f8f7d143e04047f379e806c55884fb51778d9cd20",
+      "working_tree_clean": true
+    },
+    {
+      "name": "galbot-mcap2lerobot",
+      "url": "https://github.com/GalaxyGeneralRobotics/galbot-mcap2lerobot.git",
+      "commit": "b8d7dbbe494c054a9427416238309c59b6a428ce",
+      "checkout": "external/galbot-mcap2lerobot",
+      "total_bytes_including_git": 171169,
+      "tracked_files": 11,
+      "license_sha256": "98a1382df8d60149d8882dd9b500e2d192163ed7335f1b9db0580451e2767187",
+      "working_tree_clean": true
+    },
+    {
+      "name": "galbot_one_golf_description",
+      "url": "https://github.com/GalaxyGeneralRobotics/galbot_one_golf_description.git",
+      "commit": "2d496b053f0d4e9e2688f59fac66022f447226be",
+      "checkout": "external/galbot_one_golf_description",
+      "total_bytes_including_git": 69562809,
+      "tracked_files": 465,
+      "license_sha256": "3ddf9be5c28fe27dad143a5dc76eea25222ad1dd68934a047064e56ed2fa40c5",
+      "working_tree_clean": true
+    },
+    {
+      "name": "lerobot",
+      "url": "https://github.com/huggingface/lerobot.git",
+      "commit": "b883328e6c95681ca90a18b102e4ae5e1f91e2bf",
+      "checkout": "external/lerobot",
+      "total_bytes_including_git": 158911004,
+      "tracked_files": 404,
+      "license_sha256": "b1573f6d552b494f1bac1116d2373daca84ac29f7e7f75ac65a13e41cde029cc",
+      "working_tree_clean": true
+    }
+  ]
+}

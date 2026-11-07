@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Pet Meal Robotics 本地任务控制与模块监控中枢"
+    />
+    <title>Pet Meal — 控制中枢</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="/"
+        ><span class="brandmark">pm<span>·</span></span
+        ><span>Pet Meal<small>ROBOTICS LAB</small></span></a
+      >
+      <div class="side-label">WORKSPACE / GALBOT G1</div>
+      <nav aria-label="主导航">
+        <button class="nav active" data-tab="overview">
+          <span>01</span>任务运行<i>LIVE</i>
+        </button>
+        <button class="nav" data-tab="modules"><span>02</span>模块拓扑</button>
+        <button class="nav" data-tab="validation">
+          <span>03</span>测试报告
+        </button>
+        <button class="nav" data-tab="history"><span>04</span>运行记录</button>
+      </nav>
+      <div class="side-note">
+        <span class="signal"></span>本地控制服务
+        <p>单任务执行 · 事件驱动监控<br />所有控制请求经过统一入口</p>
+      </div>
+      <div class="side-footer">
+        <span>G1 实机</span><b>未连接</b>
+        <p>硬件动作禁用 / ACT 未加载</p>
+        <small>CONTROL CENTER &nbsp; V0.2</small>
+      </div>
+    </aside>
+    <div class="workspace">
+      <header>
+        <span
+          >Pet Meal Robotics <em>/</em> <b id="breadcrumb">任务运行</b></span
+        >
+        <div>
+          <span id="connection" class="connection">连接中</span
+          ><span class="mode-label">SIMULATION ONLY</span
+          ><time id="clock">—</time>
+        </div>
+      </header>
+      <main>
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">OPERATIONS / CONTROL PLANE</div>
+            <h1>控制中枢<span>宠物餐配置 / 本地运行</span></h1>
+          </div>
+          <div class="evidence-badge">
+            离线软件闭环<span>合成观测 · 模拟执行 · 持久日志</span>
+          </div>
+        </div>
+        <div id="alert" class="alert" hidden role="alert"></div>
+        <section id="view-overview" class="view">
+          <div class="runbar">
+            <div>
+              <span class="section-num">01</span><strong>宠物餐配置</strong
+              ><span id="run-status" class="status">待启动</span>
+            </div>
+            <div class="run-controls">
+              <label
+                >场景<select
+                  id="scenario"
+                  aria-label="测试场景"
+                ></select></label
+              ><label
+                >阶段间隔<select id="pace" aria-label="阶段间隔">
+                  <option value="0.4">0.4 秒</option>
+                  <option value="0.8" selected>0.8 秒</option>
+                  <option value="1.6">1.6 秒</option>
+                </select></label
+              ><button id="start" class="primary">
+                启动完整流程 <span>↗</span></button
+              ><button id="pause" disabled>暂停</button
+              ><button id="stop" class="danger">软件停止</button
+              ><button id="reset" disabled>复位</button>
+            </div>
+          </div>
+          <div class="metrics">
+            <div>
+              <label>当前阶段</label><strong id="metric-state">等待任务</strong
+              ><small id="stage-count">— / 09</small>
+            </div>
+            <div>
+              <label>已确认动作</label
+              ><strong><span id="metric-actions">0</span><em>/ 6</em></strong
+              ><small>以执行后的反馈为准</small>
+            </div>
+            <div>
+              <label>软件运行时长</label><strong id="metric-time">—</strong
+              ><small>不代表实机演示时长</small>
+            </div>
+            <div>
+              <label>结果证据</label
+              ><strong class="small-strong">合成场景</strong
+              ><small>实体机器人验收：未测试</small>
+            </div>
+          </div>
+          <div class="operation-grid">
+            <section class="panel pipeline-panel">
+              <div class="panel-head">
+                <h2>任务进度</h2>
+                <span>FSM / 09</span>
+              </div>
+              <ol id="steps" class="steps"></ol>
+              <div class="pipeline-foot">
+                Vision → Decision → Control<br /><b>→ Execution → Feedback</b>
+              </div>
+            </section>
+            <section class="panel scene-panel">
+              <div class="panel-head">
+                <h2>场景观测</h2>
+                <div class="segmented">
+                  <button class="selected" data-scene="projection">
+                    状态投影</button
+                  ><button data-scene="raw">RGB 原始帧</button>
+                </div>
+              </div>
+              <div class="scene-meta">
+                <span
+                  ><i class="live-dot"></i
+                  ><b id="scene-source">等待第一帧</b></span
+                ><span id="frame-counter">base_link / m</span>
+              </div>
+              <div class="scene-stage">
+                <svg
+                  id="scene"
+                  viewBox="0 0 640 400"
+                  role="img"
+                  aria-label="基于合成观测的桌面场景投影"
+                ></svg
+                ><img
+                  id="raw-frame"
+                  hidden
+                  alt="最近一次保存的合成 RGB 原始帧"
+                />
+                <div id="scene-empty">
+                  <span>等待场景观测</span>
+                  <p>启动流程后查看物体定位与执行反馈</p>
+                </div>
+              </div>
+              <div class="scene-legend">
+                <span><i class="spoon"></i>量勺</span
+                ><span><i class="container"></i>食品容器</span
+                ><span><i class="bowl"></i>餐碗</span
+                ><span><i class="mat"></i>餐垫</span
+                ><b>示意投影，非动力学仿真</b>
+              </div>
+            </section>
+            <section class="panel feedback-panel">
+              <div class="panel-head">
+                <h2>执行反馈</h2>
+                <span>FEEDBACK</span>
+              </div>
+              <div class="feedback-hero">
+                <span>当前握持</span><strong id="held">未读取</strong
+                ><small>来源：模拟器状态</small>
+              </div>
+              <div class="feedback-rows">
+                <div><span>量勺装食</span><b id="spoon-loaded">—</b></div>
+                <div><span>餐碗装食</span><b id="bowl-loaded">—</b></div>
+                <div><span>传感器时间差</span><b id="skew">—</b></div>
+                <div><span>停止锁存</span><b id="latch">未触发</b></div>
+              </div>
+              <div class="target-block">
+                <label>最近动作目标 / base_link</label
+                ><strong id="target-name">等待动作</strong
+                ><code id="target-position">x — &nbsp; y — &nbsp; z —</code>
+              </div>
+            </section>
+          </div>
+          <div class="bottom-grid">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>目标定位</h2>
+                <span>RGB-D → BASE</span>
+              </div>
+              <div class="detection-heading">
+                <span>目标物体</span><span>X / Y / Z（米）</span
+                ><span>结果</span>
+              </div>
+              <div id="detections" class="detections">
+                <p class="muted">等待有效定位数据</p>
+              </div>
+            </section>
+            <section class="panel log-panel">
+              <div class="panel-head">
+                <h2>事件流</h2>
+                <div>
+                  <select id="log-filter" aria-label="事件筛选">
+                    <option value="all">全部事件</option>
+                    <option value="important">动作与异常</option></select
+                  ><button id="clear-log" class="text-button">清空显示</button>
+                </div>
+              </div>
+              <div id="events" class="events" aria-live="polite"></div>
+              <div class="log-foot">
+                <span id="event-count">0 个事件</span
+                ><a href="/api/summary" target="_blank" rel="noreferrer"
+                  >查看结果 JSON ↗</a
+                >
+              </div>
+            </section>
+          </div>
+        </section>
+        <section id="view-modules" class="view" hidden>
+          <div class="view-intro">
+            <h2>模块运行状态</h2>
+            <p>
+              中枢管理任务生命周期与命令仲裁；模块通过观测、动作和事件契约协作。以下健康状态来自最近一次实际软件事件，不代表设备心跳。
+            </p>
+          </div>
+          <div class="topology">
+            <div class="topology-core">
+              ControlHub<span>任务生命周期 / 单任务互斥 / 停止锁存</span>
+            </div>
+            <div class="topology-flow">
+              <span>Vision</span><b>→</b><span>Decision</span><b>→</b
+              ><span>Policy</span><b>→</b><span>Safety</span><b>→</b
+              ><span>Control</span><b>→</b><span>Feedback</span>
+            </div>
+            <div class="topology-bus">
+              EventBus → ModuleRegistry + Recorder → Monitoring API →
+              本地监控界面
+            </div>
+          </div>
+          <div id="module-list" class="module-grid"></div>
+          <div class="scope-note">
+            实机控制与 ACT
+            保留独立适配边界。当前中枢只接收模拟任务，不接收底层关节或力矩指令；软件停止不是实体机器人急停。
+          </div>
+        </section>
+        <section id="view-validation" class="view" hidden>
+          <div class="view-intro">
+            <h2>软件验证报告</h2>
+            <p>
+              正常场景应完成；故障场景应拒绝继续并停止。“按预期失败”属于故障测试通过。此处展示上一次运行
+              scripts/validate.py 生成的持久报告。
+            </p>
+          </div>
+          <div id="validation-content"></div>
+          <section
+            id="relevance-evidence"
+            class="panel vision-evidence"
+            hidden
+          ></section>
+          <section
+            id="vision-evidence"
+            class="panel vision-evidence"
+            hidden
+          ></section>
+        </section>
+        <section id="view-history" class="view" hidden>
+          <div class="view-intro">
+            <h2>最近运行</h2>
+            <p>
+              显示本中枢最近 25 次运行。每次保存 JSONL、观测图像、结果摘要与源码
+              / 配置哈希，服务重启后记录仍保留。
+            </p>
+          </div>
+          <div id="history-list"></div>
+        </section>
+        <footer>
+          <span>Pet Meal Robotics / Galaxy General Robotics G1</span
+          ><span>软件验证 ≠ 实机能力验收</span>
+        </footer>
+      </main>
+    </div>
+    <div id="toast" role="status" hidden></div>
+  </body>
+</html>
