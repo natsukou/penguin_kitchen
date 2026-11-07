@@ -7,27 +7,29 @@
       name="description"
       content="Pet Meal Robotics 本地任务控制与模块监控中枢"
     />
-    <title>Pet Meal — 控制中枢</title>
+    <title>企鹅厨房 · 今日餐桌</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/style.css" />
     <script src="/app.js" defer></script>
   </head>
-  <body>
+  <body class="home-page">
     <aside class="sidebar">
       <a class="brand" href="/"
         ><span class="brandmark">pm<span>·</span></span
-        ><span>Pet Meal<small>ROBOTICS LAB</small></span></a
+        ><span>企鹅厨房<small>PENGUIN KITCHEN</small></span></a
       >
-      <div class="side-label">WORKSPACE / GALBOT G1</div>
+      <div class="side-label">YOUR EVERYDAY KITCHEN</div>
       <nav aria-label="主导航">
-        <button class="nav active" data-tab="overview">
-          <span>01</span>任务运行<i>LIVE</i>
+        <button class="nav active" data-tab="home"><span>01</span>今日餐桌<i>NEW</i></button>
+        <button class="nav" data-tab="overview">
+          <span>02</span>运行控制<i>LIVE</i>
         </button>
-        <button class="nav" data-tab="modules"><span>02</span>模块拓扑</button>
+        <button class="nav" data-tab="modules"><span>03</span>模块拓扑</button>
         <button class="nav" data-tab="validation">
-          <span>03</span>测试报告
+          <span>04</span>测试报告
         </button>
-        <button class="nav" data-tab="history"><span>04</span>运行记录</button>
+        <button class="nav" data-tab="history"><span>05</span>运行记录</button>
+        <a class="nav" href="/nutrition_ui/index.html"><span>06</span>饮食健康</a>
       </nav>
       <div class="side-note">
         <span class="signal"></span>本地控制服务
@@ -42,7 +44,7 @@
     <div class="workspace">
       <header>
         <span
-          >Pet Meal Robotics <em>/</em> <b id="breadcrumb">任务运行</b></span
+          >Penguin Kitchen <em>/</em> <b id="breadcrumb">今日餐桌</b></span
         >
         <div>
           <span id="connection" class="connection">连接中</span
@@ -51,7 +53,7 @@
         </div>
       </header>
       <main>
-        <div class="page-heading">
+        <div class="page-heading" id="operations-heading" hidden>
           <div>
             <div class="eyebrow">OPERATIONS / CONTROL PLANE</div>
             <h1>控制中枢<span>宠物餐配置 / 本地运行</span></h1>
@@ -61,7 +63,43 @@
           </div>
         </div>
         <div id="alert" class="alert" hidden role="alert"></div>
-        <section id="view-overview" class="view">
+        <section id="view-home" class="view kitchen-home">
+  <div class="kitchen-heading"><div><p class="kicker">A LITTLE FRESHNESS, EVERY DAY</p><h1>好好吃饭，从眼前的食材开始<span class="heading-spark">✳</span></h1><p>看看厨房里有什么，让今天这一餐，刚刚好。</p></div><span class="day-stamp">THE DAILY TABLE<br><b>今日餐桌</b></span></div>
+  <div class="kitchen-layout">
+    <section class="observation-column" aria-label="场景观测与食材">
+      <div class="section-title"><h2><span class="tiny-dot"></span>场景观测</h2><span>01 / OBSERVE</span></div>
+      <div class="observation-surface">
+        <div class="projection-toolbar"><span class="demo-label">演示场景</span><div role="group" aria-label="观测视图"><button data-observation="ingredients" class="selected" aria-pressed="true">食材投影</button><button data-observation="live" aria-pressed="false">实时观测</button></div><span class="projection-axis">TOP VIEW ↗</span></div>
+        <div id="ingredient-projection" class="ingredient-projection"><svg viewBox="0 0 680 430" role="img" aria-label="演示桌面状态投影：蘑菇、豆腐、鸡胸肉和蔬菜">
+          <defs><pattern id="table-grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#cbd4be" stroke-width=".65"/></pattern><filter id="dish-shadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="9" stdDeviation="8" flood-color="#536348" flood-opacity=".13"/></filter></defs>
+          <rect width="680" height="430" fill="url(#table-grid)"/><path d="M24 55V24H55M625 24h31v31M656 375v31h-31M55 406H24v-31" fill="none" stroke="#91a080" stroke-width="1.5"/>
+          <text x="41" y="52" fill="#839176" font-size="10" letter-spacing="2">KITCHEN WORKSPACE</text>
+          <defs><clipPath id="photo-clip-0"><rect x="76" y="97" width="218" height="146" rx="14"/></clipPath></defs><image x="76" y="97" width="218" height="146" href="/images/raw-mushroom.25881edee45e.webp" preserveAspectRatio="xMidYMid slice" clip-path="url(#photo-clip-0)"/>
+          <defs><clipPath id="photo-clip-1"><rect x="375" y="74" width="190" height="120" rx="14"/></clipPath></defs><image x="375" y="74" width="190" height="120" href="/images/raw-tofu.ad4e6520250f.webp" preserveAspectRatio="xMidYMid slice" clip-path="url(#photo-clip-1)"/>
+          <defs><clipPath id="photo-clip-2"><rect x="323" y="235" width="230" height="138" rx="14"/></clipPath></defs><image x="323" y="235" width="230" height="138" href="/images/raw-chicken.b79c65be5b0c.webp" preserveAspectRatio="xMidYMid slice" clip-path="url(#photo-clip-2)"/>
+          <defs><clipPath id="photo-clip-3"><rect x="73" y="272" width="174" height="103" rx="14"/></clipPath></defs><image x="73" y="272" width="174" height="103" href="/images/raw-vegetable.77eb9a323e12.webp" preserveAspectRatio="xMidYMid slice" clip-path="url(#photo-clip-3)"/>
+          <g fill="none" stroke="#7f9471" stroke-dasharray="4 4"><rect x="76" y="78" width="218" height="174" rx="13"/><rect x="365" y="60" width="210" height="145" rx="13"/><rect x="310" y="221" width="259" height="164" rx="13"/><rect x="60" y="259" width="201" height="128" rx="13"/></g>
+          <g font-family="Microsoft YaHei,sans-serif" font-size="11" fill="#4c6341"><rect x="89" y="70" width="72" height="24" rx="12" fill="#f7f8ee"/><text x="103" y="86">01 蘑菇</text><rect x="378" y="50" width="72" height="24" rx="12" fill="#f7f8ee"/><text x="392" y="66">02 豆腐</text><rect x="326" y="212" width="90" height="24" rx="12" fill="#f7f8ee"/><text x="339" y="228">03 鸡胸肉</text><rect x="74" y="250" width="72" height="24" rx="12" fill="#f7f8ee"/><text x="88" y="266">04 蔬菜</text></g>
+          <path d="M607 368v-25m0 25h25" stroke="#738965"/><text x="635" y="373" font-size="10" fill="#738965">X</text><text x="603" y="337" font-size="10" fill="#738965">Y</text>
+        </svg><span class="projection-caption"><i></i>原始食材投影<span>演示数据</span></span></div>
+        <div id="live-observation" hidden></div>
+      </div>
+      <div class="pantry-heading"><h3>今天的食材<span>点击食材，看看能做什么</span></h3><button id="all-ingredients" class="active">全部食材 ↗</button></div>
+      <div class="ingredient-chips" role="group" aria-label="选择推荐食材"><button data-ingredient="mushroom" aria-pressed="false"><span>01</span>蘑菇</button><button data-ingredient="tofu" aria-pressed="false"><span>02</span>豆腐</button><button data-ingredient="chicken" aria-pressed="false"><span>03</span>鸡胸肉</button><button data-ingredient="vegetable" aria-pressed="false"><span>04</span>新鲜蔬菜</button></div>
+      <p class="ingredient-note">原始食材实拍参考 · 手动选择演示食材。</p>
+      <div class="kitchen-tip"><span>✳</span><div><b>让食材做主角</b><p>清蒸留住本味，简单搭配，也能让日常一餐有滋有味。</p></div><span class="tip-line">LESS IS MORE</span></div>
+    </section>
+    <section class="recommendation-column" aria-label="推荐菜谱"><div class="section-title"><h2>这一餐，想怎么吃？</h2><span>02 / COOK</span></div>
+      <div class="recipe-tabs" role="tablist" aria-label="菜谱模式"><button role="tab" id="mode-fat" aria-selected="true" aria-controls="recipe-results" tabindex="0" data-recipe-mode="fat"><span>◒</span>减脂<small>LIGHT</small></button><button role="tab" id="mode-salt" aria-selected="false" aria-controls="recipe-results" tabindex="-1" data-recipe-mode="salt"><span>◌</span>减盐<small>GENTLE</small></button><button role="tab" id="mode-daily" aria-selected="false" aria-controls="recipe-results" tabindex="-1" data-recipe-mode="daily"><span>✳</span>日常<small>EVERYDAY</small></button></div>
+      <div class="recipe-summary"><p id="mode-description">少一点油，多一点轻盈。</p><div class="recipe-summary-actions"><span><b id="recipe-count">03</b> 道推荐</span><button id="more-recipes" aria-label="换一组推荐菜谱">换一组 ↻</button></div></div>
+      <div id="recipe-results" role="tabpanel" aria-labelledby="mode-fat" tabindex="0"><div id="recipe-list" class="recipe-list"></div></div><p id="recipe-announcement" class="sr-only" aria-live="polite"></p>
+      <div class="recommendation-foot"><span>为眼前的食材，找到刚好的做法。</span><span>MADE FOR YOUR TABLE ↗</span></div>
+    </section>
+  </div>
+</section>
+<dialog id="recipe-dialog" aria-labelledby="recipe-dialog-title"><button id="close-recipe" aria-label="关闭菜谱">✕</button><div id="recipe-detail"></div></dialog>
+
+        <section id="view-overview" class="view" hidden>
           <div class="runbar">
             <div>
               <span class="section-num">01</span><strong>宠物餐配置</strong
@@ -271,7 +309,7 @@
           <div id="history-list"></div>
         </section>
         <footer>
-          <span>Pet Meal Robotics / Galaxy General Robotics G1</span
+          <span>企鹅厨房 / PENGUIN KITCHEN</span
           ><span>软件验证 ≠ 实机能力验收</span>
         </footer>
       </main>

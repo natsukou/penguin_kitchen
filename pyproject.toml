@@ -20,7 +20,11 @@ pet-meal = "pet_meal.cli:main"
 include = ["pet_meal*"]
 
 [tool.setuptools.package-data]
-pet_meal = ["ui/*.html", "ui/*.css", "ui/*.js"]
+pet_meal = [
+    "ui/*.html", "ui/*.css", "ui/*.js",
+    "ui/images/*.webp",
+    "ui/nutrition_ui/*.html", "ui/nutrition_ui/*.css", "ui/nutrition_ui/*.js",
+]
 
 [tool.ruff]
 line-length = 100

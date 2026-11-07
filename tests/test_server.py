@@ -49,6 +49,19 @@ def test_dashboard_static_and_status(server):
     assert json.loads(body)["hardware_motion_enabled"] is False
 
 
+def test_dashboard_serves_nutrition_and_recipe_images(server):
+    status, body = request(server, "GET", "/")
+    assert status == 200 and b'href="/nutrition_ui/index.html"' in body
+    status, body = request(server, "GET", "/nutrition_ui/index.html")
+    assert status == 200 and b'src="/nutrition_ui/app.js"' in body
+    assert request(server, "GET", "/nutrition_ui/app.js")[0] == 200
+    assert request(server, "GET", "/nutrition_ui/style.css")[0] == 200
+    status, body = request(server, "GET", "/images/raw-tofu.ad4e6520250f.webp")
+    assert status == 200 and body[:4] == b"RIFF" and body[8:12] == b"WEBP"
+    assert request(server, "GET", "/images/missing.webp")[0] == 404
+    assert request(server, "GET", "/images/../server.py")[0] == 404
+
+
 def test_relevance_reports_are_read_only_and_distinguish_missing_data(server):
     status, body = request(server, "GET", "/api/bailian-vision")
     assert status == 200 and json.loads(body) == {"available": False}

@@ -2,6 +2,7 @@
 
 import hmac
 import json
+import re
 import secrets
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -11,6 +12,14 @@ from .hub import ControlHub
 from .types import TaskError
 
 STATIC = Path(__file__).parent / "ui"
+STATIC_ROUTES = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/style.css": ("style.css", "text/css; charset=utf-8"),
+    "/nutrition_ui/index.html": ("nutrition_ui/index.html", "text/html; charset=utf-8"),
+    "/nutrition_ui/app.js": ("nutrition_ui/app.js", "text/javascript; charset=utf-8"),
+    "/nutrition_ui/style.css": ("nutrition_ui/style.css", "text/css; charset=utf-8"),
+}
 
 
 class HubServer(ThreadingHTTPServer):
@@ -68,6 +77,14 @@ class HubHandler(BaseHTTPRequestHandler):
         except (OSError, ValueError):
             self.reply({"error": "Report is temporarily unavailable"}, 503)
 
+    def static_file(self, name: str, content_type: str):
+        try:
+            data = (STATIC / name).read_bytes()
+        except FileNotFoundError:
+            self.reply({"error": "Not found"}, 404)
+        else:
+            self.reply(data, content_type=content_type)
+
     def do_GET(self):
         if not self.valid_host():
             return
@@ -108,14 +125,10 @@ class HubHandler(BaseHTTPRequestHandler):
                 self.reply({"error": "No recorded frame yet"}, 404)
         elif parsed.path == "/api/summary":
             self.reply(hub.snapshot().get("summary") or {"available": False})
-        elif parsed.path in {"/", "/app.js", "/style.css"}:
-            name = "index.html" if parsed.path == "/" else parsed.path[1:]
-            mime = {
-                "index.html": "text/html; charset=utf-8",
-                "app.js": "text/javascript; charset=utf-8",
-                "style.css": "text/css; charset=utf-8",
-            }[name]
-            self.reply((STATIC / name).read_bytes(), content_type=mime)
+        elif parsed.path in STATIC_ROUTES:
+            self.static_file(*STATIC_ROUTES[parsed.path])
+        elif re.fullmatch(r"/images/[a-z0-9][a-z0-9.-]*\.webp", parsed.path):
+            self.static_file(parsed.path[1:], "image/webp")
         else:
             self.reply({"error": "Not found"}, 404)
 

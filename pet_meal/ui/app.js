@@ -85,7 +85,9 @@ let current = null,
   logRows = [],
   sceneMode = "projection",
   busy = false,
-  rawVersion = "";
+  rawVersion = "",
+  selectedView = "home",
+  sceneSignature = "";
 $("scenario").innerHTML = Object.entries(faults)
   .map(([key, label]) => `<option value="${key}">${label}</option>`)
   .join("");
@@ -158,6 +160,9 @@ document.querySelectorAll("[data-scene]").forEach(
     }),
 );
 function selectTab(name) {
+  selectedView = name;
+  document.body.classList.toggle("home-page", name === "home");
+  $("operations-heading").hidden = name === "home";
   document
     .querySelectorAll(".view")
     .forEach((v) => (v.hidden = v.id !== `view-${name}`));
@@ -165,6 +170,7 @@ function selectTab(name) {
     .querySelectorAll("[data-tab]")
     .forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   $("breadcrumb").textContent = {
+    home: "今日餐桌",
     overview: "任务运行",
     modules: "模块拓扑",
     validation: "测试报告",
@@ -176,10 +182,16 @@ function selectTab(name) {
     loadRelevanceEvidence();
   }
   if (name === "history") loadHistory();
+  if (current) render(current);
 }
 function render(data) {
   current = data;
   if (data.control_token) token = data.control_token;
+  if (selectedView === "home") {
+    if (!$("live-observation").hidden) renderScene(data);
+    return;
+  }
+  if (selectedView === "history" || selectedView === "validation") return;
   const index = data.sequence.indexOf(data.state),
     finished = data.status === "complete";
   $("run-status").textContent = statuses[data.status] || data.status;
@@ -249,6 +261,9 @@ function render(data) {
 }
 function renderScene(data) {
   const obs = data?.observation;
+  const signature = JSON.stringify([sceneMode, obs, data?.frame_available, data?.last_action]);
+  if (signature === sceneSignature) return;
+  sceneSignature = signature;
   $("scene-empty").hidden =
     sceneMode === "raw" ? Boolean(data?.frame_available) : Boolean(obs);
   $("scene").hidden = sceneMode !== "projection";
@@ -257,7 +272,7 @@ function renderScene(data) {
     ? "合成 RGB-D / 最近观测"
     : "等待第一帧";
   if (data?.frame_available && sceneMode === "raw") {
-    const version = `${data.run_id}-${cursor}`;
+    const version = `${data.run_id}-${obs?.frame_id ?? obs?.timestamp_ns ?? cursor}`;
     if (version !== rawVersion) {
       $("raw-frame").src = `/api/frame?v=${encodeURIComponent(version)}`;
       rawVersion = version;
@@ -467,12 +482,14 @@ async function poll() {
   try {
     const data = await api("/api/status");
     render(data);
-    const stream = await api(`/api/events?after=${cursor}`);
-    if (stream.truncated) logRows = [];
-    if (stream.events.length) {
-      cursor = stream.cursor;
-      logRows = [...logRows, ...stream.events].slice(-300);
-      renderLogs();
+    if (selectedView === "overview" || selectedView === "modules") {
+      const stream = await api(`/api/events?after=${cursor}`);
+      if (stream.truncated) logRows = [];
+      if (stream.events.length) {
+        cursor = stream.cursor;
+        logRows = [...logRows, ...stream.events].slice(-300);
+        renderLogs();
+      }
     }
     $("connection").textContent = "服务在线";
     $("connection").className = "connection online";
@@ -483,6 +500,106 @@ async function poll() {
       (id) => ($(id).disabled = true),
     );
   }
-  setTimeout(poll, 450);
+  const interval = document.hidden ? 5000 : selectedView === "overview" || (selectedView === "home" && !$("live-observation").hidden) ? 750 : 2000;
+  setTimeout(poll, interval);
 }
 poll();
+
+// The recipe pantry is an explicit frontend demo, independent of robot observations.
+const recipeCatalog = [
+  {id:"mushroom-tofu",name:"蘑菇豆腐蒸菜",ingredients:["蘑菇","豆腐","小葱"],groups:["mushroom","tofu"],kind:"mushroom",time:18,method:"清蒸",tag:"鲜味叠加 · 清爽不寡淡",steps:["豆腐切块、蘑菇切片，放入浅盘。","加少量清水，水开后入锅蒸约 12–15 分钟。","出锅撒上葱花，再按所选模式调味。"]},
+  {id:"lemon-chicken",name:"柠檬香菜鸡胸肉蒸菜",ingredients:["鸡胸肉","柠檬","香菜"],groups:["chicken"],kind:"chicken",time:25,method:"清蒸",tag:"柠檬清香 · 一口鲜嫩",steps:["鸡胸肉切成厚度均匀的小块，加入柠檬汁拌匀。","放入耐热盘，水开后蒸约 15–20 分钟，按厚度调整，确保肉中心完全熟透。","出锅加入香菜，淋上少量柠檬汁调味。"]},
+  {id:"vegetable-salad",name:"蔬菜沙拉",ingredients:["生菜","小番茄","黄瓜"],groups:["vegetable"],kind:"salad",time:10,method:"凉拌",tag:"缤纷蔬菜 · 新鲜一整碗",steps:["生菜、黄瓜和小番茄洗净，沥干水分。","生菜撕小片，黄瓜切片，小番茄对半切。","加入所选模式的调味汁，食用前轻轻拌匀。"]},
+  {id:"mushroom-vegetables",name:"蘑菇时蔬暖沙拉",ingredients:["蘑菇","生菜","小番茄"],groups:["mushroom","vegetable"],kind:"salad",time:15,method:"焯拌",tag:"温热菌菇 · 搭配脆嫩时蔬",steps:["蘑菇切片，入沸水煮熟后沥干。","生菜和番茄洗净切好，与温热蘑菇混合。","按模式加入调味汁，轻轻拌匀。"]},
+  {id:"mushroom-chicken",name:"香菇鸡胸肉蒸菜",ingredients:["蘑菇","鸡胸肉","姜丝"],groups:["mushroom","chicken"],kind:"chicken",time:25,method:"清蒸",tag:"菌菇提鲜 · 一盘刚刚好",steps:["鸡胸肉切成均匀小块，蘑菇切片，放入姜丝。","铺在浅盘中，水开后蒸约 15–20 分钟，确保鸡肉中心完全熟透。","出锅轻拌，根据所选模式调味。"]},
+  {id:"tofu-vegetables",name:"时蔬豆腐蒸菜",ingredients:["豆腐","西兰花","胡萝卜"],groups:["tofu","vegetable"],kind:"mushroom",time:20,method:"清蒸",tag:"软嫩豆腐 · 一盘蔬食色彩",steps:["豆腐切块，西兰花掰成小朵，胡萝卜切薄片并洗净。","铺入浅盘，水开后蒸约 12–15 分钟至食材熟透。","沥去多余蒸汽水，根据模式加入调味汁。"]},
+  {id:"tofu-salad",name:"黄瓜豆腐沙拉",ingredients:["豆腐","黄瓜","小番茄"],groups:["tofu","vegetable"],kind:"salad",time:12,method:"凉拌",tag:"柔软与爽脆 · 简单又合拍",steps:["豆腐切块，放入沸水中煮熟后沥干放凉。","黄瓜、番茄洗净切好，与豆腐混合。","加入所选模式的调味汁，轻拌后食用。"]},
+  {id:"chicken-salad",name:"鸡胸肉蔬菜沙拉",ingredients:["鸡胸肉","生菜","小番茄"],groups:["chicken","vegetable"],kind:"salad",time:25,method:"蒸拌",tag:"一碗丰盛 · 荤素好搭配",steps:["鸡胸肉切块后蒸约 15–20 分钟，确保中心完全熟透。","洗净生菜和小番茄，沥干切好。","熟鸡肉稍放凉后撕小块，与蔬菜和调味汁拌匀。"]},  {"id": "tomato-tofu", "name": "番茄豆腐汤", "ingredients": ["番茄", "豆腐", "小葱"], "groups": ["tofu", "vegetable"], "kind": "mushroom", "time": 20, "method": "炖煮", "tag": "番茄酸甜 · 豆腐软嫩", "steps": ["番茄洗净切块，豆腐切小块，小葱切碎。", "锅中加少量油，炒软番茄后倒入清水煮开。", "加入豆腐，小火煮约 8–10 分钟，按所选模式调味，撒葱花。"]},
+  {"id": "broccoli-mushroom", "name": "蒜香西兰花蘑菇", "ingredients": ["西兰花", "蘑菇", "大蒜"], "groups": ["mushroom", "vegetable"], "kind": "salad", "time": 15, "method": "快炒", "tag": "蒜香提鲜 · 脆嫩有层次", "steps": ["西兰花洗净掰小朵，蘑菇切片，大蒜切末。", "西兰花先焯至断生，沥干；锅中加少量油，炒香蒜末。", "放入蘑菇炒熟，再加入西兰花翻炒，按所选模式调味。"]},
+  {"id": "cucumber-chicken", "name": "黄瓜拌鸡丝", "ingredients": ["鸡胸肉", "黄瓜", "白芝麻"], "groups": ["chicken", "vegetable"], "kind": "chicken", "time": 25, "method": "煮拌", "tag": "清爽鸡丝 · 一口脆嫩", "steps": ["鸡胸肉切成厚度均匀的块，煮至中心完全熟透。", "鸡肉稍放凉后撕成丝；黄瓜洗净切细丝。", "混合鸡丝与黄瓜，撒白芝麻，根据模式用柠檬汁或少量香醋调味。"]},
+  {"id": "spinach-egg", "name": "菠菜炒鸡蛋", "ingredients": ["菠菜", "鸡蛋", "大蒜"], "groups": ["vegetable"], "kind": "salad", "time": 12, "method": "快炒", "tag": "鲜嫩蛋香 · 家常好滋味", "steps": ["菠菜洗净后焯水、沥干切段；鸡蛋打散，大蒜切末。", "不粘锅中放少量油，将蛋液炒至完全凝固后盛出。", "炒香蒜末，放入菠菜和鸡蛋翻匀，按所选模式调味。"]},
+
+];
+const kitchenModes = {
+  fat:{label:"减脂",description:"少一点油，多一点轻盈。",note:"使用柠檬汁、黑胡椒提味；避免额外淋油和浓稠沙拉酱。",order:["mushroom-tofu","lemon-chicken","vegetable-salad","cucumber-chicken","tofu-salad","mushroom-vegetables","chicken-salad","tofu-vegetables","tomato-tofu","broccoli-mushroom","mushroom-chicken","spinach-egg"]},
+  salt:{label:"减盐",description:"借一点天然鲜味，让调味轻一些。",note:"不额外加盐或酱油，用柠檬、姜丝、香菜与菌菇提鲜。",order:["tofu-vegetables","broccoli-mushroom","mushroom-vegetables","lemon-chicken","mushroom-tofu","tofu-salad","tomato-tofu","vegetable-salad","cucumber-chicken","mushroom-chicken","spinach-egg","chicken-salad"]},
+  daily:{label:"日常",description:"熟悉的食材，换一点新滋味。",note:"少量盐调味，可按口味加入香醋和少量橄榄油。",order:["tomato-tofu","spinach-egg","chicken-salad","mushroom-chicken","tofu-vegetables","broccoli-mushroom","tofu-salad","cucumber-chicken","mushroom-vegetables","lemon-chicken","mushroom-tofu","vegetable-salad"]},
+};
+let kitchenMode = "fat", kitchenIngredient = null, kitchenBatch = 0;
+const ingredientLabels = {mushroom:"蘑菇",tofu:"豆腐",chicken:"鸡胸肉",vegetable:"蔬菜"};
+const foodPhotos = {"mushroom-tofu": {"src": "/images/mushroom.e5b1442f88a9.webp", "source": "https://www.dienmayxanh.com/vao-bep/tim-kiem/dau-hu-hap-nam", "credit": "DienmayXanh · 蘑菇豆腐蒸菜实拍"}, "lemon-chicken": {"src": "/images/chicken.f99b233bc22a.webp", "source": "https://news.infoseek.co.jp/article/iemone_338529/", "credit": "iemone / Infoseek · 柠檬香菜蒸鸡胸实拍"}, "vegetable-salad": {"src": "/images/salad.61077b37f62c.webp", "source": "https://unsplash.com/photos/LgOsoMm38Cc", "credit": "Rashpal Singh / Unsplash · 蔬菜沙拉实拍"}, "mushroom-vegetables": {"src": "/images/mushroom-vegetables.b0447eff220a.webp", "source": "https://recipe.rakuten.co.jp/recipe/1700007979/", "credit": "Rakuten Recipe · 温热菌菇沙拉"}, "mushroom-chicken": {"src": "/images/mushroom-chicken.c2186a911eda.webp", "source": "https://cookpad.com/tw/食譜/16907892", "credit": "Cookpad / 安妮食堂 · 香菇蒸鸡"}, "tofu-vegetables": {"src": "/images/tofu-vegetables.27a7291c362f.webp", "source": "https://m.10000recipe.com/recipe/7045296", "credit": "10000recipe · 时蔬豆腐蒸菜"}, "tofu-salad": {"src": "/images/tofu-salad.13a137c7a88d.webp", "source": "https://recipes.timesofindia.com/recipes/tofu-cucumber-salad/rs60702182.cms", "credit": "Times of India · 黄瓜豆腐沙拉"}, "chicken-salad": {"src": "/images/chicken-salad.ece0ad95ebd3.webp", "source": "https://kitchen.sayidaty.net/node/12084", "credit": "Sayidaty Kitchen · 鸡胸肉蔬菜沙拉"}, "tomato-tofu": {"src": "/images/tomato-tofu.77943a82b7e0.webp", "source": "https://www.madewithlau.com/recipes/tomato-tofu-soup", "credit": "Made With Lau · 番茄豆腐汤"}, "broccoli-mushroom": {"src": "/images/broccoli-mushroom.1ac23d5e1fa3.webp", "source": "https://www.foodtalkdaily.com/recipes/cuisine/asian/broccoli-and-mushroom-stir-fry-quick-and-healthy-44684593", "credit": "Foodtalk · 西兰花炒蘑菇"}, "cucumber-chicken": {"src": "/images/cucumber-chicken.992d7d2ea3a9.webp", "source": "https://recipe.rakuten.co.jp/recipe/1470012399/", "credit": "Rakuten Recipe · 黄瓜拌鸡丝"}, "spinach-egg": {"src": "/images/spinach-egg.0f3ae81ac8f5.webp", "source": "https://www.foodfaithfitness.com/spinach-scrambled-eggs/", "credit": "Food Faith Fitness · 菠菜炒鸡蛋"}};
+function plateArt(kind, name = "菜品实拍参考") {
+  return `<img class="food-photo" src="${foodPhotos[kind].src}" alt="${esc(name)}实拍参考" decoding="async" width="320" height="240" />`;
+}
+
+function kitchenPool() {
+  const mode = kitchenModes[kitchenMode];
+  const rank = id => {const i=mode.order.indexOf(id);return i < 0 ? mode.order.length : i;};
+  return recipeCatalog.filter(r => !kitchenIngredient || r.groups.includes(kitchenIngredient)).sort((a,b) => rank(a.id)-rank(b.id));
+}
+function kitchenRecipes() {
+  const pool = kitchenPool(), start = (kitchenBatch * 3) % pool.length;
+  return Array.from({length:Math.min(3,pool.length)},(_,i)=>pool[(start+i)%pool.length]);
+}
+
+function renderKitchen() {
+  const mode = kitchenModes[kitchenMode], recipes = kitchenRecipes();
+  $("more-recipes").disabled = kitchenPool().length <= 3;
+  $("more-recipes").title = `从 ${kitchenPool().length} 道菜中换一组推荐`;
+  $("mode-description").textContent = kitchenIngredient ? `${ingredientLabels[kitchenIngredient]}的三种好吃法 · ${mode.label}模式` : mode.description;
+  document.querySelectorAll("[data-recipe-mode]").forEach(b => {
+    const selected = b.dataset.recipeMode === kitchenMode;
+    b.setAttribute("aria-selected", String(selected)); b.tabIndex = selected ? 0 : -1;
+  });
+  document.querySelectorAll("[data-ingredient]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.ingredient === kitchenIngredient)));
+  $("all-ingredients").classList.toggle("active", !kitchenIngredient);
+  $("recipe-results").setAttribute("aria-labelledby", `mode-${kitchenMode}`);
+  $("recipe-list").innerHTML = recipes.map((r,i) => `<button class="recipe-card" data-open-recipe="${r.id}" aria-label="查看${esc(r.name)}做法"><span class="dish-art ${r.kind}">${plateArt(r.id,r.name)}<small>0${i+1}</small></span><span class="dish-copy"><span class="recipe-label">${mode.label}推荐 <i>·</i> ${r.method}</span><strong>${r.name}</strong><span class="dish-tagline">${r.tag}</span><span class="recipe-ingredients">${r.ingredients.join('<i> / </i>')}</span><span class="recipe-meta"><span>◷ ${r.time} 分钟</span><span>简单易做</span><b>查看做法 ↗</b></span></span></button>`).join("");
+  $("recipe-announcement").textContent = `已切换为${mode.label}模式，推荐${recipes.map(r=>r.name).join("、")}`;
+  document.querySelectorAll("[data-open-recipe]").forEach(b => b.onclick = () => openRecipe(b.dataset.openRecipe));
+}
+function openRecipe(id) {
+  const r = recipeCatalog.find(r=>r.id===id), mode = kitchenModes[kitchenMode];
+  $("recipe-detail").innerHTML = `<div class="detail-art ${r.kind}">${plateArt(r.id,r.name)}</div><p class="kicker">${mode.label}模式 / ${r.method} / ${r.time} 分钟</p><h2 id="recipe-dialog-title">${r.name}</h2><p class="detail-ingredients">食材：${r.ingredients.join("、")}</p><div class="mode-cooking-note">${mode.note}</div><ol>${r.steps.map(s=>`<li>${s}</li>`).join("")}</ol><p class="photo-credit">同类菜品实拍参考 · <a href="${foodPhotos[r.id].source}" target="_blank" rel="noreferrer">${esc(foodPhotos[r.id].credit)} ↗</a></p><p class="recipe-detail-note">演示菜谱 · 时间为参考，请以食材实际熟透状态为准。</p>`;
+  $("recipe-dialog").showModal();
+}
+document.querySelectorAll("[data-recipe-mode]").forEach(b => {
+  b.onclick = () => {kitchenMode=b.dataset.recipeMode; kitchenBatch=0; renderKitchen();};
+  b.onkeydown = e => {
+    const buttons = [...document.querySelectorAll("[data-recipe-mode]")];
+    let i = buttons.indexOf(b);
+    if(e.key === "ArrowRight") i=(i+1)%buttons.length;
+    else if(e.key === "ArrowLeft") i=(i+buttons.length-1)%buttons.length;
+    else if(e.key === "Home") i=0;
+    else if(e.key === "End") i=buttons.length-1;
+    else return;
+    e.preventDefault(); buttons[i].click(); buttons[i].focus();
+  };
+});
+document.querySelectorAll("[data-ingredient]").forEach(b => b.onclick = () => {kitchenIngredient=b.dataset.ingredient; kitchenBatch=0; renderKitchen();});
+$("all-ingredients").onclick = () => {kitchenIngredient=null; kitchenBatch=0; renderKitchen();};
+$("more-recipes").onclick = () => {kitchenBatch++; renderKitchen();};
+$("close-recipe").onclick = () => $("recipe-dialog").close();
+$("recipe-dialog").onclick = e => {if(e.target === $("recipe-dialog")) {const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}};
+$("live-observation").append(document.querySelector(".scene-panel"));
+document.querySelectorAll("[data-observation]").forEach(b => b.onclick = () => {
+  const live=b.dataset.observation === "live";
+  $("ingredient-projection").hidden=live; $("live-observation").hidden=!live;
+  document.querySelector(".demo-label").textContent=live ? "模拟器观测" : "演示场景";
+  if (live) renderScene(current);
+  document.querySelectorAll("[data-observation]").forEach(other=>{other.classList.toggle("selected",other===b);other.setAttribute("aria-pressed",String(other===b));});
+});
+renderKitchen();
+
+
+const ingredientPhotos = {"raw-mushroom": {"src": "/images/raw-mushroom.25881edee45e.webp", "source": "https://unsplash.com/photos/RpyEAQS1I5g"}, "raw-tofu": {"src": "/images/raw-tofu.ad4e6520250f.webp", "source": "https://food.daily.co.kr/read3132202425"}, "raw-chicken": {"src": "/images/raw-chicken.b79c65be5b0c.webp", "source": "https://unsplash.com/photos/HsEnMY-ZYO8"}, "raw-vegetable": {"src": "/images/raw-vegetable.77eb9a323e12.webp", "source": "https://unsplash.com/photos/lzyaeNQ9wU4"}};
+const portraitProjection = document.createElement("div");
+portraitProjection.className = "portrait-projection";
+portraitProjection.setAttribute("aria-label", "原始食材状态投影，演示数据");
+portraitProjection.innerHTML = [
+  ["raw-mushroom", "01", "蘑菇"],
+  ["raw-tofu", "02", "豆腐"],
+  ["raw-chicken", "03", "鸡胸肉"],
+  ["raw-vegetable", "04", "蔬菜"],
+].map(([kind, number, label]) => `<div class="projection-photo"><img class="food-photo" src="${ingredientPhotos[kind].src}" alt="${label}原始食材实拍" width="160" height="120" decoding="async" /><span><i>${number}</i>${label}</span><b>⌖</b></div>`).join("");
+$("ingredient-projection").prepend(portraitProjection);
