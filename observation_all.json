@@ -1,0 +1,199 @@
+{
+  "timestamp_ns": null,
+  "detections": {
+    "bottle_01": {
+      "object_id": "bottle_01",
+      "name": "透明塑料水瓶",
+      "category": "bottle",
+      "description": "透明带蓝色盖子的塑料水瓶，立于桌面左前方，瓶身有水渍反光",
+      "position_m": null,
+      "confidence": 0.95,
+      "frame_id": null
+    },
+    "bottle_02": {
+      "object_id": "bottle_02",
+      "name": "粉橙渐变塑料水壶",
+      "category": "bottle",
+      "description": "粉红至橙色渐变半透明塑料水壶，带黑色提手，位于桌面左侧靠前位置",
+      "position_m": null,
+      "confidence": 0.98,
+      "frame_id": null
+    },
+    "bag_01": {
+      "object_id": "bag_01",
+      "name": "黑色纸袋",
+      "category": "bag",
+      "description": "黑色纸质手提袋，开口朝上，置于桌左中区域，袋口可见白色内衬",
+      "position_m": null,
+      "confidence": 0.92,
+      "frame_id": null
+    },
+    "tray_01": {
+      "object_id": "tray_01",
+      "name": "白色长方形塑料托盘",
+      "category": "tray",
+      "description": "白色哑光塑料长方形托盘，表面有凹槽，放于桌面前部中央偏左",
+      "position_m": null,
+      "confidence": 0.96,
+      "frame_id": null
+    },
+    "spoon_01": {
+      "object_id": "spoon_01",
+      "name": "白色塑料漏勺",
+      "category": "spoon",
+      "description": "白色塑料材质带网格孔的漏勺，勺头朝上斜放于托盘上",
+      "position_m": null,
+      "confidence": 0.97,
+      "frame_id": null
+    },
+    "spoon_02": {
+      "object_id": "spoon_02",
+      "name": "银色金属长柄勺",
+      "category": "spoon",
+      "description": "银色金属长柄勺，平放于托盘右侧，勺柄指向右后方",
+      "position_m": null,
+      "confidence": 0.94,
+      "frame_id": null
+    },
+    "bowl_01": {
+      "object_id": "bowl_01",
+      "name": "白色陶瓷小碗（带蓝边）",
+      "category": "bowl",
+      "description": "白色陶瓷小碗，口沿有浅蓝色细圈装饰，置于桌面前部中央",
+      "position_m": null,
+      "confidence": 0.95,
+      "frame_id": null
+    },
+    "bowl_02": {
+      "object_id": "bowl_02",
+      "name": "白色陶瓷小碗（无装饰）",
+      "category": "bowl",
+      "description": "纯白色陶瓷小碗，与bowl_01并列，稍靠后，内壁光滑",
+      "position_m": null,
+      "confidence": 0.95,
+      "frame_id": null
+    },
+    "bowl_03": {
+      "object_id": "bowl_03",
+      "name": "深灰色陶瓷小碗",
+      "category": "bowl",
+      "description": "深灰色哑光陶瓷小碗，位于桌面前部右侧，边缘略厚",
+      "position_m": null,
+      "confidence": 0.93,
+      "frame_id": null
+    },
+    "bowl_04": {
+      "object_id": "bowl_04",
+      "name": "不锈钢金属碗",
+      "category": "bowl",
+      "description": "抛光不锈钢小碗，倒扣于桌面前缘地面附近，反射灯光明显",
+      "position_m": null,
+      "confidence": 0.96,
+      "frame_id": null
+    },
+    "plate_01": {
+      "object_id": "plate_01",
+      "name": "黑色圆形陶瓷盘",
+      "category": "plate",
+      "description": "黑色哑光圆形陶瓷盘，平放于桌面右侧，直径约15cm",
+      "position_m": null,
+      "confidence": 0.94,
+      "frame_id": null
+    },
+    "plate_02": {
+      "object_id": "plate_02",
+      "name": "黑色椭圆形陶瓷盘",
+      "category": "plate",
+      "description": "黑色椭圆形陶瓷盘，叠在plate_01上方，部分遮挡",
+      "position_m": null,
+      "confidence": 0.91,
+      "frame_id": null
+    },
+    "box_01": {
+      "object_id": "box_01",
+      "name": "黑色长方体盒子",
+      "category": "box",
+      "description": "黑色哑光长方体硬质盒子，横置于桌面前部中央，表面无标识",
+      "position_m": null,
+      "confidence": 0.97,
+      "frame_id": null
+    },
+    "utensil_01": {
+      "object_id": "utensil_01",
+      "name": "银色金属刮刀/铲子",
+      "category": "utensil",
+      "description": "银色金属扁平头工具，类似刮刀或小铲，斜靠在box_01旁",
+      "position_m": null,
+      "confidence": 0.88,
+      "frame_id": null
+    },
+    "lid_01": {
+      "object_id": "lid_01",
+      "name": "黑色圆形塑料盖",
+      "category": "lid",
+      "description": "黑色圆形塑料盖，边缘有卡扣结构，置于bowl_03旁",
+      "position_m": null,
+      "confidence": 0.85,
+      "frame_id": null
+    },
+    "cloth_01": {
+      "object_id": "cloth_01",
+      "name": "白色折叠布巾",
+      "category": "cloth",
+      "description": "白色棉质布巾折叠成矩形，放在桌右后方杂物堆中",
+      "position_m": null,
+      "confidence": 0.82,
+      "frame_id": null
+    },
+    "pack_01": {
+      "object_id": "pack_01",
+      "name": "黑白条纹包装袋",
+      "category": "pack",
+      "description": "黑白相间条纹软质包装袋，部分展开，位于桌右下角地面边缘",
+      "position_m": null,
+      "confidence": 0.78,
+      "frame_id": null
+    },
+    "glove_01": {
+      "object_id": "glove_01",
+      "name": "黑黄配色防护手套",
+      "category": "glove",
+      "description": "黑色主体、荧光黄条纹的工业防护手套，卷曲放置于桌右下方地面旁",
+      "position_m": null,
+      "confidence": 0.86,
+      "frame_id": null
+    },
+    "cable_01": {
+      "object_id": "cable_01",
+      "name": "黑色电源线卷",
+      "category": "cable",
+      "description": "黑色绝缘外皮电源线，部分盘绕，置于桌右下角地面附近",
+      "position_m": null,
+      "confidence": 0.75,
+      "frame_id": null
+    },
+    "stand_01": {
+      "object_id": "stand_01",
+      "name": "银色金属支架部件",
+      "category": "stand",
+      "description": "银色金属L型支架局部，带螺栓孔，位于桌右后方台面下",
+      "position_m": null,
+      "confidence": 0.72,
+      "frame_id": null
+    },
+    "tool_01": {
+      "object_id": "tool_01",
+      "name": "蓝色塑料手柄工具",
+      "category": "tool",
+      "description": "蓝色塑料手柄、金属头部的小型工具，斜靠在桌右边缘",
+      "position_m": null,
+      "confidence": 0.8,
+      "frame_id": null
+    }
+  },
+  "feedback": {
+    "held_object": "unknown",
+    "spoon_loaded": null,
+    "bowl_loaded": null
+  }
+}
