@@ -1,15 +1,4 @@
-.venv/
 __pycache__/
-.pytest_cache/
-.ruff_cache/
-*.egg-info/
-build/
-dist/
-external/
-/models/*
-!/models/assets.lock.json
-!/models/tableware-cc0.jpg
-artifacts/
-.venv-act/
+*.py[cod]
 .env
 .env.*
