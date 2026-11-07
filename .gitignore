@@ -6,7 +6,10 @@ __pycache__/
 build/
 dist/
 external/
-models/
+/models/*
+!/models/assets.lock.json
+!/models/tableware-cc0.jpg
 artifacts/
+.venv-act/
 .env
 .env.*

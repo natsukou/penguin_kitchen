@@ -30,6 +30,8 @@
 .\.venv\Scripts\python.exe scripts/validate.py
 ```
 
+如需运行 YOLO 实图推理，先运行 `.\scripts\download_vision_assets.ps1`。它会从官方地址恢复 YOLO11n 权重及缺少的示例文件，并按仓库中的清单校验大小和 SHA-256。
+
 故障演示返回非零退出码，属于预期结果：
 
 ```powershell
@@ -45,19 +47,15 @@
 
 GPU 不可用时用 `--device cpu`。官方 `bus.jpg` 只检验推理入口，不用于证明宠物餐物体识别准确率。YOLO 当前与任务控制隔离，检测框不能直接作为抓取位姿。
 
-## 已下载资源
+## 模型与外部组件
 
-- `external/GalbotSDK`：官方 SDK 1.10.0、Linux 动态库、接口文档和示例。
-- `external/galbot_one_golf_description`：官方 URDF、MJCF、USD 模型。
-- `external/galbot-mcap2lerobot`：官方 MCAP → LeRobotDataset v2.1 转换器。
-- `external/lerobot`：官方 v0.3.3 源码，与上述转换器的依赖声明匹配；尚未安装完整训练环境。
-- `models/yolo11n.pt`：官方 COCO 预训练模型；来源、体积及 SHA256 见 `models/assets.lock.json`。
-
-提交号见 `external.lock.json`。下载脚本还会获取并校验百炼测试使用的公开餐具照片。首次克隆后按需要获取外部资源：
+- 仓库随附 [LeRobot v0.3.3（含 ACT）和 Galbot MCAP 转换器源码包](vendor/README.md)，可在单独的环境中安装。ACT 的项目数据集与训练权重尚未产生。
+- 仓库随附 CC0 餐具照片 `models/tableware-cc0.jpg`，可用于 YOLO 和百炼测试。
+- `models/yolo11n.pt` 是 Ultralytics 发布的 COCO 预训练权重。仓库提供官方下载与校验清单。使用和分发遵循 [Ultralytics 许可](https://www.ultralytics.com/license)。
+- Galbot SDK 1.10.0 和官方 URDF、MJCF、USD 模型通过 `external.lock.json` 固定到已检查的上游提交。需要 SDK 或完整上游检出时运行：
 
 ```powershell
 .\scripts\fetch_official.ps1
-.\scripts\download_vision_assets.ps1
 ```
 
 首次建立 Python 环境可运行 `scripts/bootstrap.ps1`。当前 `.venv` 使用 `--system-site-packages` 复用本机 PyTorch/CUDA，环境信息见 `artifacts/environment.json`；这不是完全独立的环境。完整机器学习训练环境应另建环境，不能认为已下载源码等于已验证全部依赖。
