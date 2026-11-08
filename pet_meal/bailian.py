@@ -14,7 +14,9 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 import cv2
 import numpy as np
 
+from .recognition import SceneObject
 from .relevance import PHASES, decide_relevance, parse_evidence
+from .scene_choice import grasp_prompt, parse_grasp_choice
 from .types import TaskError
 
 DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -57,7 +59,30 @@ def endpoint_for(base_url: str) -> str:
     return url.geturl() + "/chat/completions"
 
 
-def encode_image(image: Path) -> tuple[str, dict]:
+def _key_error(api_key: str) -> str | None:
+    if api_key.startswith("sk-sp-"):
+        return "Plan-specific key detected. This endpoint requires a general Bailian API key."
+    if not re.fullmatch(r"[!-~]{10,256}", api_key):
+        return "DASHSCOPE_API_KEY is missing or invalid"
+    return None
+
+
+def read_api_key(path: Path) -> str:
+    """Read the sk entry of a local setup note."""
+    with path.open(encoding="utf-8-sig") as stream:
+        note = stream.read(16_385)
+    if len(note) > 16_384:
+        raise TaskError("Bailian configuration note exceeds 16 KiB")
+    keys = re.findall(
+        r"(?im)^[ \t]*sk[：:][ \t]*(?:\r?\n[ \t]*)?(sk-[A-Za-z0-9_.-]{10,250})[ \t]*\r?$",
+        note,
+    )
+    if len(keys) != 1:
+        raise TaskError("Bailian configuration must contain exactly one sk entry")
+    return keys[0]
+
+
+def prepare_image(image: Path) -> tuple[bytes, dict]:
     try:
         with image.open("rb") as stream:
             original = stream.read(MAX_IMAGE_BYTES + 1)
@@ -82,7 +107,7 @@ def encode_image(image: Path) -> tuple[str, dict]:
     ok, encoded = cv2.imencode(".jpg", pixels, [cv2.IMWRITE_JPEG_QUALITY, 90])
     if not ok:
         raise TaskError("Image could not be encoded as JPEG")
-    return "data:image/jpeg;base64," + base64.b64encode(encoded).decode("ascii"), {
+    return encoded.tobytes(), {
         "name": image.name,
         "sha256": hashlib.sha256(original).hexdigest(),
         "sent_shape": list(pixels.shape[:2]),
@@ -90,7 +115,12 @@ def encode_image(image: Path) -> tuple[str, dict]:
     }
 
 
-def _request_evidence(endpoint: str, api_key: str, model: str, image_url: str) -> dict:
+def encode_image(image: Path) -> tuple[str, dict]:
+    jpeg, metadata = prepare_image(image)
+    return "data:image/jpeg;base64," + base64.b64encode(jpeg).decode("ascii"), metadata
+
+
+def _request_vision(endpoint: str, api_key: str, model: str, image_url: str, prompt: str) -> dict:
     body = {
         "model": model,
         "messages": [
@@ -98,7 +128,7 @@ def _request_evidence(endpoint: str, api_key: str, model: str, image_url: str) -
                 "role": "user",
                 "content": [
                     {"type": "image_url", "image_url": {"url": image_url}},
-                    {"type": "text", "text": PROMPT},
+                    {"type": "text", "text": prompt},
                 ],
             }
         ],
@@ -137,7 +167,7 @@ def _request_evidence(endpoint: str, api_key: str, model: str, image_url: str) -
         request_id = value.get("id")
         usage = value.get("usage")
         return {
-            "observations": parse_evidence(choice["message"]["content"]),
+            "content": choice["message"]["content"],
             "request_id": request_id
             if isinstance(request_id, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,120}", request_id)
             else None,
@@ -149,6 +179,49 @@ def _request_evidence(endpoint: str, api_key: str, model: str, image_url: str) -
         }
     except (KeyError, IndexError, AttributeError, TypeError, ValueError, RecursionError):
         raise TaskError("Unexpected Bailian response structure") from None
+
+
+def _request_evidence(endpoint: str, api_key: str, model: str, image_url: str) -> dict:
+    result = _request_vision(endpoint, api_key, model, image_url, PROMPT)
+    result["observations"] = parse_evidence(result.pop("content"))
+    return result
+
+
+def choose_grasp(
+    image: Path,
+    intent: str,
+    candidates: list[SceneObject],
+    api_key: str,
+    base_url: str = DEFAULT_BASE_URL,
+    model: str = DEFAULT_MODEL,
+) -> dict:
+    """Ask for a semantic action using only the selected image and candidate metadata."""
+    prompt = grasp_prompt(intent, candidates)
+    if not re.fullmatch(r"qwen[\w.-]{1,79}", model, flags=re.ASCII):
+        raise TaskError("Select a Qwen visual model supported by Bailian")
+    endpoint = endpoint_for(base_url)
+    report = {
+        "source": "bailian_live",
+        "model": model,
+        "endpoint_host": urlsplit(endpoint).hostname,
+        "status": "unavailable",
+        "request_attempted": False,
+        "selection": None,
+        "dispatch_allowed": False,
+    }
+    if error := _key_error(api_key):
+        return {**report, "error": error}
+    started = time.perf_counter()
+    try:
+        image_url, report["image"] = encode_image(image)
+        report["request_attempted"] = True
+        result = _request_vision(endpoint, api_key, model, image_url, prompt)
+        selection = parse_grasp_choice(result.pop("content"), {obj.object_id for obj in candidates})
+        report.update(result, status="completed", selection=selection)
+    except TaskError as exc:
+        report["error"] = str(exc)
+    report["elapsed_ms"] = round((time.perf_counter() - started) * 1000)
+    return report
 
 
 def analyze_image(
@@ -170,8 +243,8 @@ def analyze_image(
         "decisions": [decide_relevance(phase, ()) for phase in phases],
         "dispatch_allowed": False,
     }
-    if not api_key or not re.fullmatch(r"[!-~]{10,256}", api_key):
-        return {**report, "error": "DASHSCOPE_API_KEY is missing or invalid"}
+    if error := _key_error(api_key):
+        return {**report, "error": error}
     try:
         image_url, report["image"] = encode_image(image)
         report["request_attempted"] = True

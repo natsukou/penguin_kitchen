@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pet Meal · 语音与直控</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/operator.css" />
+    <script src="/operator.js" defer></script>
+    <script src="/show.js" defer></script>
+  </head>
+  <body>
+    <div id="operator-home">
+      <main id="operator">
+        <header>
+          <div>
+            <div class="eyebrow">PET MEAL / GALBOT G1</div>
+            <h1>语音与直控</h1>
+          </div>
+          <div class="actions">
+            <a class="button" href="/" target="_blank" rel="noopener">控制中枢</a>
+            <button id="float" type="button">置顶浮窗 ↗</button>
+          </div>
+        </header>
+        <p id="window-status" class="hint" role="status"></p>
+        <section class="strip" aria-label="控制状态">
+          <span id="connection">连接本机中枢中</span>
+          <span id="mode">等待状态</span>
+          <strong>真机派发关闭</strong>
+        </section>
+        <div class="cards">
+          <section class="card">
+            <h2><span>01</span> 麦克风指令</h2>
+            <form id="voice-form">
+              <label for="transcript">转写文本 · 可编辑</label>
+              <textarea id="transcript" rows="2" required maxlength="120"
+                placeholder="例如：取水瓶后放回"></textarea>
+              <div class="actions">
+                <button id="mic" type="button">开始听写</button>
+                <button id="interpret" type="submit" disabled>解析到任务</button>
+              </div>
+            </form>
+            <p id="mic-status" class="hint" role="status"></p>
+            <p class="hint">听写由浏览器提供，可能使用其在线识别服务。也可直接输入文本。</p>
+          </section>
+          <section class="card">
+            <h2><span>02</span> 直控任务 · 规划预览</h2>
+            <form id="plan-form">
+              <div class="fields">
+                <label>动作
+                  <select name="skill">
+                    <option value="grasp">抓取并试提</option>
+                    <option value="pick_place">抓取并放回</option>
+                    <option value="shake_then_place">抓取、摇动并放回</option>
+                  </select>
+                </label>
+                <label>摇动次数
+                  <input name="repeat_count" type="number" min="1" max="3" step="1" value="1" />
+                </label>
+                <label>选择方式
+                  <select name="selector">
+                    <option value="category">类别</option>
+                    <option value="object_id">实例 ID</option>
+                  </select>
+                </label>
+                <label>目标 <input name="target" required maxlength="128" value="bottle" /></label>
+              </div>
+              <details id="scene-fields" open>
+                <summary>场景输入 · 路径相对于 artifacts</summary>
+                <label>采集目录 <input name="capture" required placeholder="g1-capture-..." /></label>
+                <label>识别结果 <input name="observation" required placeholder="capture/observation.json" /></label>
+                <label>视觉选择（可选） <input name="vision_choice" placeholder="capture/vision-choice.json" /></label>
+              </details>
+              <button id="plan" class="primary" type="submit" disabled>确认并生成规划</button>
+            </form>
+          </section>
+          <section class="card receipt">
+            <h2><span>03</span> 中枢状态与回执</h2>
+            <div class="actions" aria-label="软件任务控制">
+              <button id="pause" type="button" disabled>暂停</button>
+              <button id="stop" class="danger" type="button" disabled>软件停止</button>
+              <button id="reset" type="button" disabled>复位</button>
+            </div>
+            <p id="run-status" role="status">等待中枢状态</p>
+            <p id="request-status" class="hint" role="status"></p>
+            <p id="stage-summary" class="hint"></p>
+            <a id="receipt-link" href="/api/summary" target="_blank" rel="noopener" hidden>查看回执 JSON ↗</a>
+          </section>
+          <section class="card receipt">
+            <h2><span>04</span> 《好运来》· 10 秒舞蹈预演</h2>
+            <p class="hint">选择音源后，从同一音频时钟预演音乐和头部摆动。G1 实机演出由现场终端独立预检。</p>
+            <div class="fields">
+              <label>音源 <input id="show-file" type="file" accept="audio/*,.wav,.mp3,.m4a" /></label>
+              <label>片段起点（秒） <input id="show-offset" type="number" value="0" min="0" step="0.1" /></label>
+            </div>
+            <div class="actions show-controls">
+              <button id="show-load" type="button" hidden>载入《好运来》</button>
+              <button id="show-play" type="button" disabled>预演 10 秒</button>
+              <button id="show-stop" type="button" disabled>停止预演</button>
+              <button id="show-export" type="button" disabled>导出 G1 WAV</button>
+            </div>
+            <div class="show-timeline">
+              <svg viewBox="0 0 88 58" width="66" height="44" aria-label="头部摆动示意" role="img">
+                <path d="M44 39v14M32 53h24" stroke="#185f4d" stroke-width="3" stroke-linecap="round" />
+                <g id="show-head">
+                  <rect x="23" y="6" width="42" height="34" rx="10" fill="#185f4d" />
+                  <circle cx="37" cy="22" r="3" fill="white" />
+                  <circle cx="51" cy="22" r="3" fill="white" />
+                </g>
+              </svg>
+              <progress id="show-progress" value="0" max="10" aria-label="演出进度"></progress>
+              <output id="show-clock">0.0 / 10 秒</output>
+            </div>
+            <p id="show-status" class="hint" role="status">等待音源</p>
+            <a href="https://tv.cctv.com/2017/12/30/VIDEU00SuWXRTy4vrGqeFFsx171230.shtml" target="_blank" rel="noopener">祖海演唱 · 央视试听 ↗</a>
+          </section>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

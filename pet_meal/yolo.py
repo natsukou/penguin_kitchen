@@ -10,9 +10,9 @@ import cv2
 from .types import TaskError
 
 
-def predict_image(weights: Path, image: Path, output: Path, device: str = "cpu") -> dict:
-    if not weights.is_file() or not image.is_file():
-        raise TaskError("Local weights and image are required; automatic downloads are disabled")
+def load_local_yolo(weights: Path):
+    if not weights.is_file() or weights.suffix.lower() != ".pt":
+        raise TaskError("A local PyTorch weights file is required")
     # Keep third-party settings inside the project and disable analytics/autoinstall.
     os.environ["YOLO_CONFIG_DIR"] = str(
         Path(__file__).resolve().parents[1] / "artifacts/yolo-config"
@@ -22,7 +22,13 @@ def predict_image(weights: Path, image: Path, output: Path, device: str = "cpu")
     from ultralytics import YOLO, settings
 
     settings.update({"sync": False})
-    model = YOLO(str(weights.resolve()))
+    return YOLO(str(weights.resolve()))
+
+
+def predict_image(weights: Path, image: Path, output: Path, device: str = "cpu") -> dict:
+    if not image.is_file():
+        raise TaskError("A local image is required")
+    model = load_local_yolo(weights)
     result = model.predict(str(image.resolve()), device=device, verbose=False)[0]
     detections = [
         {

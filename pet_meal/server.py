@@ -3,14 +3,27 @@
 import hmac
 import json
 import secrets
+from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from .g1_show import PCM_RATE, PRESET_CLIP, SHOW_SECONDS, show_manifest
+from .g1_task import TaskRequest
 from .hub import ControlHub
 from .types import TaskError
+from .voice import interpret_voice
 
 STATIC = Path(__file__).parent / "ui"
+STATIC_ROUTES = {
+    "/": ("index.html", "text/html"),
+    "/app.js": ("app.js", "text/javascript"),
+    "/style.css": ("style.css", "text/css"),
+    "/operator": ("operator.html", "text/html"),
+    "/operator.js": ("operator.js", "text/javascript"),
+    "/operator.css": ("operator.css", "text/css"),
+    "/show.js": ("show.js", "text/javascript"),
+}
 
 
 class HubServer(ThreadingHTTPServer):
@@ -86,6 +99,12 @@ class HubHandler(BaseHTTPRequestHandler):
             self.reply(hub.bus.after(cursor))
         elif parsed.path == "/api/runs":
             self.reply(hub.run_history())
+        elif parsed.path.startswith("/api/runs/"):
+            run = hub.run_status(parsed.path.removeprefix("/api/runs/"))
+            if run is None:
+                self.reply({"error": "Run not found"}, 404)
+            else:
+                self.reply(run)
         elif parsed.path == "/api/validation":
             self.report(hub.workspace / "artifacts/validation.json")
         elif parsed.path == "/api/vision-sample":
@@ -108,14 +127,26 @@ class HubHandler(BaseHTTPRequestHandler):
                 self.reply({"error": "No recorded frame yet"}, 404)
         elif parsed.path == "/api/summary":
             self.reply(hub.snapshot().get("summary") or {"available": False})
-        elif parsed.path in {"/", "/app.js", "/style.css"}:
-            name = "index.html" if parsed.path == "/" else parsed.path[1:]
-            mime = {
-                "index.html": "text/html; charset=utf-8",
-                "app.js": "text/javascript; charset=utf-8",
-                "style.css": "text/css; charset=utf-8",
-            }[name]
-            self.reply((STATIC / name).read_bytes(), content_type=mime)
+        elif parsed.path == "/api/show":
+            audio_available = (hub.workspace / PRESET_CLIP).is_file()
+            self.reply({**show_manifest(), "audio_available": audio_available})
+        elif parsed.path == "/api/show/audio":
+            clip = hub.workspace / PRESET_CLIP
+            limit = PCM_RATE * SHOW_SECONDS * 2 + 4096
+            try:
+                with clip.open("rb") as stream:
+                    audio = stream.read(limit + 1)
+                if not (
+                    audio.startswith(b"RIFF") and audio[8:12] == b"WAVE" and len(audio) <= limit
+                ):
+                    raise ValueError("Invalid show WAV")
+            except (OSError, ValueError):
+                self.reply({"error": "演出音源不可用"}, 404)
+            else:
+                self.reply(audio, content_type="audio/wav")
+        elif parsed.path in STATIC_ROUTES:
+            name, mime = STATIC_ROUTES[parsed.path]
+            self.reply((STATIC / name).read_bytes(), content_type=f"{mime}; charset=utf-8")
         else:
             self.reply({"error": "Not found"}, 404)
 
@@ -130,7 +161,14 @@ class HubHandler(BaseHTTPRequestHandler):
         if not hmac.compare_digest(supplied, self.server.token):
             self.reply({"error": "Missing or invalid control token"}, 403)
             return
-        if self.path != "/api/commands":
+        if self.path not in (
+            "/api/commands",
+            "/api/tabletop/plan",
+            "/api/tabletop/interpret",
+            "/api/tabletop/simulate",
+            "/api/tabletop/execute",
+            "/api/hardware/probe",
+        ):
             self.reply({"error": "Not found"}, 404)
             return
         try:
@@ -140,6 +178,30 @@ class HubHandler(BaseHTTPRequestHandler):
             if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
                 raise ValueError("JSON content type required")
             request = json.loads(self.rfile.read(length))
+            if self.path == "/api/hardware/probe":
+                if request != {}:
+                    raise ValueError("Hardware probe accepts an empty JSON object")
+                self.reply(self.server.hub.probe_hardware())
+                return
+            if self.path == "/api/tabletop/execute":
+                if not isinstance(request, dict) or set(request) != {
+                    "plan_id", "plan_sha256", "robot_sn", "request_id",
+                }:
+                    raise ValueError(
+                        "Execution requires plan ID, SHA-256, robot serial and request ID"
+                    )
+                self.reply(self.server.hub.start_hardware(**request), 202)
+                return
+            if self.path == "/api/tabletop/interpret":
+                if not isinstance(request, dict) or set(request) != {"text"}:
+                    raise ValueError("语音解析只接受 text 字段")
+                task = interpret_voice(request["text"])
+                self.reply({"task": asdict(task), "dispatch_allowed": False})
+                return
+            if self.path in ("/api/tabletop/plan", "/api/tabletop/simulate"):
+                simulation = self.path == "/api/tabletop/simulate"
+                self.reply(self._tabletop_plan(request, simulation=simulation), 202)
+                return
             if not isinstance(request, dict) or set(request) - {
                 "command",
                 "fault",
@@ -162,9 +224,55 @@ class HubHandler(BaseHTTPRequestHandler):
         except (ValueError, TypeError) as exc:
             self.reply({"error": str(exc)}, 400)
 
+    def _tabletop_plan(self, request, *, simulation=False):
+        required = {"task", "capture", "observation"}
+        allowed = required | {"vision_choice", "request_id"}
+        if simulation:
+            allowed.add("fault")
+        if not isinstance(request, dict) or not required <= request.keys() <= allowed:
+            raise ValueError("Invalid tabletop plan fields")
+        fault = request.get("fault", "none") if simulation else None
+        if simulation and not isinstance(fault, str):
+            raise ValueError("Tabletop simulation fault must be a string")
+        task = request["task"]
+        if (
+            not isinstance(task, dict)
+            or "skill" not in task
+            or set(task)
+            - {
+                "skill",
+                "object_id",
+                "category",
+                "repeat_count",
+            }
+        ):
+            raise ValueError("Invalid task fields")
+        hub = self.server.hub
+        root = (hub.workspace / "artifacts").resolve()
 
-def serve(workspace: Path, config: dict, port: int):
-    hub = ControlHub(workspace, config)
+        def artifact_path(name, *, directory=False):
+            value = request[name]
+            if not isinstance(value, str) or not value.strip() or Path(value).anchor:
+                raise ValueError(f"{name} must be relative to artifacts")
+            path = (root / value).resolve()
+            if not path.is_relative_to(root) or not (
+                path.is_dir() if directory else path.suffix == ".json" and path.is_file()
+            ):
+                raise ValueError(f"Invalid tabletop {name} artifact")
+            return path
+
+        return hub.start_tabletop(
+            TaskRequest(**task),
+            artifact_path("capture", directory=True),
+            artifact_path("observation"),
+            vision_choice=artifact_path("vision_choice") if "vision_choice" in request else None,
+            simulation_fault=fault,
+            request_id=request.get("request_id"),
+        )
+
+
+def serve(workspace: Path, config: dict, port: int, *, hpu=None):
+    hub = ControlHub(workspace, config, hpu=hpu)
     server = HubServer(hub, port)
     print(f"Pet Meal Control Center: http://127.0.0.1:{server.server_address[1]}", flush=True)
     try:

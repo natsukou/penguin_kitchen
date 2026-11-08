@@ -25,10 +25,12 @@ class Recorder:
         config: dict,
         evidence_level: str,
         on_event: Callable[[dict], None] | None = None,
+        *,
+        run_id: str | None = None,
     ):
         directory.mkdir(parents=True, exist_ok=True)
         self.directory = directory
-        self.run_id = uuid.uuid4().hex
+        self.run_id = run_id or uuid.uuid4().hex
         self.evidence_level = evidence_level
         self.on_event = on_event
         self.path = directory / "events.jsonl"

@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from pet_meal import bailian
+from pet_meal.cli import main
 from pet_meal.relevance import ROLES, decide_relevance, fixture_test, parse_evidence
 from pet_meal.types import TaskError
 
@@ -131,12 +132,26 @@ def test_workspace_endpoint_is_supported():
     assert bailian.endpoint_for(url) == url + "/chat/completions"
 
 
-def test_missing_key_never_attempts_request(monkeypatch, image):
+def test_setup_note_reads_only_the_key_entry(tmp_path):
+    note = tmp_path / "bailian.txt"
+    note.write_text(
+        "sk：\nsk-sp-fixture-only\n\ncurl -fsSL "
+        "'https://bailian.aliyun.com/token-plan.cn-beijing.sh' | bash -s 'opaque argument'\n",
+        encoding="utf-8-sig",
+    )
+    assert bailian.read_api_key(note) == "sk-sp-fixture-only"
+    note.write_text("curl -fsSL 'example' | bash -s 'sk-sp-fixture-only'", encoding="utf-8")
+    with pytest.raises(TaskError, match="exactly one sk entry"):
+        bailian.read_api_key(note)
+
+
+@pytest.mark.parametrize("key", ["", "sk-sp-fixture-only"])
+def test_unusable_key_never_attempts_request(monkeypatch, image, key):
     def fail_if_called(*args):
-        pytest.fail("Cloud request attempted with no credential")
+        pytest.fail("Cloud request attempted with an unusable credential")
 
     monkeypatch.setattr(bailian, "_request_evidence", fail_if_called)
-    result = bailian.analyze_image(image, "", bailian.DEFAULT_BASE_URL, bailian.DEFAULT_MODEL)
+    result = bailian.analyze_image(image, key, bailian.DEFAULT_BASE_URL, bailian.DEFAULT_MODEL)
     assert result["status"] == "unavailable"
     assert result["request_attempted"] is False
     assert all(d["outcome"] == "hold" for d in result["decisions"])
@@ -163,3 +178,86 @@ def test_provider_failure_holds_every_phase_and_redacts_body(monkeypatch, image,
     assert result["request_attempted"] is True
     assert key not in json.dumps(result)
     assert all(d["outcome"] == "hold" and not d["dispatch_allowed"] for d in result["decisions"])
+
+
+@pytest.mark.parametrize(
+    ("content", "expected_action", "exit_code"),
+    [
+        ('{"action":"grasp","object_id":"bottle_01"}', "localize_target", 0),
+        ('{"action":"disambiguate_target","object_id":null}', "disambiguate_target", 0),
+        ('{"action":"grasp","object_id":"bowl_01"}', "hold", 2),
+        ('{"action":"grasp","object_id":"bottle_01","pose":[1,2,3]}', "hold", 2),
+        ('{"action":"grasp","action":"grasp","object_id":"bottle_01"}', "hold", 2),
+    ],
+)
+def test_bailian_scene_choice_uses_existing_decision_gate(
+    monkeypatch, image, tmp_path, capsys, content, expected_action, exit_code
+):
+    observation = tmp_path / "observation.json"
+    detections = {
+        key: {
+            "object_id": key,
+            "name": name,
+            "category": category,
+            "description": name,
+            "confidence": 0.95,
+            "position_m": None,
+            "frame_id": None,
+        }
+        for key, name, category in (
+            ("bottle_01", "蓝盖水瓶", "bottle"),
+            ("bottle_02", "粉色水壶", "bottle"),
+            ("bowl_01", "碗", "bowl"),
+        )
+    }
+    observation.write_text(
+        json.dumps(
+            {
+                "timestamp_ns": None,
+                "detections": detections,
+                "feedback": {"held_object": "unknown", "spoon_loaded": None, "bowl_loaded": None},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "fixture-key-00000")
+    monkeypatch.setenv("DASHSCOPE_BASE_URL", bailian.DEFAULT_BASE_URL)
+    monkeypatch.setenv("DASHSCOPE_MODEL", bailian.DEFAULT_MODEL)
+
+    def response(request):
+        body = json.loads(request.data)
+        prompt = body["messages"][0]["content"][1]["text"]
+        shortlist = json.loads(prompt.split("\n")[-1])
+        assert [row["object_id"] for row in shortlist["candidates"]] == ["bottle_01", "bottle_02"]
+        assert "position_m" not in prompt
+        return io.BytesIO(
+            json.dumps(
+                {"choices": [{"finish_reason": "stop", "message": {"content": content}}]}
+            ).encode()
+        )
+
+    use_fake_provider(monkeypatch, response)
+    assert (
+        main(
+            [
+                "scene-action",
+                "--observation",
+                str(observation),
+                "--category",
+                "bottle",
+                "--bailian-image",
+                str(image),
+                "--intent",
+                "抓蓝盖水瓶",
+            ]
+        )
+        == exit_code
+    )
+    result = json.loads(capsys.readouterr().out)
+    assert result["next_action"] == expected_action
+    assert result["dispatch_allowed"] is False
+    assert result["geometry"] is None
+    if expected_action == "localize_target":
+        assert result["target"]["object_id"] == "bottle_01"
+    else:
+        assert result["target"] is None

@@ -92,8 +92,8 @@ $("scenario").innerHTML = Object.entries(faults)
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
-    ...options,
     signal: AbortSignal.timeout(6000),
+    ...options,
   });
   const value = await response.json();
   if (!response.ok) throw new Error(value.error || `HTTP ${response.status}`);
@@ -139,6 +139,52 @@ $("pause").onclick = () =>
   command(current?.status === "paused" ? "resume" : "pause");
 $("stop").onclick = () => command("stop");
 $("reset").onclick = () => command("reset");
+$("hardware-probe").onclick = async () => {
+  if (busy || !token || current?.active) return;
+  busy = true;
+  $("hardware-probe").disabled = true;
+  $("hardware-probe").textContent = "正在检查…";
+  try {
+    const probe = await api("/api/hardware/probe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Control-Token": token },
+      body: "{}",
+      signal: AbortSignal.timeout(30000),
+    });
+    render(await api("/api/status"));
+    toast(probe.state === "ready" ? `XCU 已回读 · ${probe.xcu.mode}` : probe.reason);
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    busy = false;
+    $("hardware-probe").disabled = Boolean(current?.active);
+    $("hardware-probe").textContent = "检查 HPU 与 XCU";
+  }
+};
+$("tabletop-plan").onsubmit = async (event) => {
+  event.preventDefault();
+  if (busy || !token) return;
+  busy = true;
+  const input = new FormData(event.currentTarget);
+  const payload = {
+    capture: input.get("capture").trim(),
+    observation: input.get("observation").trim(),
+    task: { skill: input.get("skill"), [input.get("selector")]: input.get("target").trim() },
+  };
+  const choice = input.get("vision_choice").trim();
+  if (choice) payload.vision_choice = choice;
+  try {
+    render(await api("/api/tabletop/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Control-Token": token },
+      body: JSON.stringify(payload),
+    }));
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    busy = false;
+  }
+};
 $("clear-log").onclick = () => {
   logRows = [];
   renderLogs();
@@ -180,6 +226,41 @@ function selectTab(name) {
 function render(data) {
   current = data;
   if (data.control_token) token = data.control_token;
+  const bottleSimulation = data.mode === "g1_simulation";
+  const hardware = data.mode === "g1_hardware";
+  const tabletop = hardware || bottleSimulation || data.mode === "g1_plan_only";
+  $("mode-label").textContent = hardware ? "G1 HPU / XCU" : bottleSimulation ? "G1 SIMULATION"
+    : tabletop ? "G1 PLAN ONLY" : "SIMULATION ONLY";
+  $("task-mode").textContent = hardware ? "G1 实机分段" : bottleSimulation ? "G1 水瓶模拟"
+    : tabletop ? "G1 桌面任务规划" : "宠物餐配置";
+  $("hardware-connection").textContent = data.hardware_connected ? "HPU 回读已确认"
+    : data.hardware_transport_configured ? "等待 HPU 探针" : "未连接";
+  $("hardware-probe").hidden = !data.hardware_transport_configured;
+  $("hardware-probe").disabled = busy || data.active;
+  $("hardware-mode").textContent = [
+    data.hardware_probe?.xcu?.mode,
+    data.hardware_probe?.arm_trajectory_status?.[0]?.split(".").pop(),
+    data.hardware_motion_enabled ? "现场允许运动" : "硬件动作禁用",
+  ].filter(Boolean).join(" · ");
+  $("simulation-metrics").hidden = tabletop;
+  $("simulation-operation").hidden = tabletop;
+  $("plan-task").disabled = data.active || data.stop_latched;
+  if (hardware) {
+    const stage = data.tabletop?.hpu_stage_verified?.stage_id;
+    $("tabletop-result").textContent = [
+      `${data.confirmed_actions} 段实机验收`, stage, data.summary?.reason,
+    ].filter(Boolean).join(" · ");
+  } else if (tabletop) {
+    const result = data.summary;
+    const candidate = result?.candidates?.[0];
+    const stageResults = result?.simulated_stage_results;
+    $("tabletop-result").textContent = !result ? "正在读取场景与计算抓取阶段。"
+      : stageResults ? `${result.object_id} · ${result.simulated_verified_stages} 个模拟阶段通过 · 摇动 ${result.shake_cycles} 次 · ${stageResults.map(s => s.stage_id).join(" → ")}`
+      : candidate ? `${result.object_id} · ${result.candidates.length} 个候选 · ${candidate.stages.map(s => s.stage_id).join(" → ")} · ${result.reason}`
+      : `${result.state} · ${result.reason}${result.detail ? ` · ${result.detail}` : ""}`;
+  } else {
+    $("tabletop-result").textContent = "使用采集记录预览抓取，实机派发关闭。";
+  }
   const index = data.sequence.indexOf(data.state),
     finished = data.status === "complete";
   $("run-status").textContent = statuses[data.status] || data.status;
@@ -193,7 +274,7 @@ function render(data) {
     data.elapsed_wall_s == null ? "—" : `${data.elapsed_wall_s.toFixed(1)} s`;
   $("start").disabled = data.active || data.stop_latched;
   $("stop").disabled = false;
-  $("pause").disabled = !data.active || data.stop_latched;
+  $("pause").disabled = hardware || !data.active || data.stop_latched;
   $("pause").textContent = data.status === "paused" ? "继续" : "暂停";
   $("reset").disabled = data.active || !data.stop_latched;
   $("scenario").disabled = data.active;
@@ -209,7 +290,7 @@ function render(data) {
   $("alert").hidden = !data.stop_latched;
   if (data.stop_latched)
     $("alert").textContent =
-      `软件停止已锁存。${data.summary?.error || "操作员已发出停止请求。"} ${data.active ? "等待任务结束后可复位。" : "检查记录并复位后，才能重新启动。"}`;
+      `软件停止已锁存。${data.summary?.error || data.summary?.reason || "操作员已发出停止请求。"} ${data.active ? "等待任务结束后可复位。" : "检查记录并复位后，才能重新启动。"}`;
   const obs = data.observation,
     fb = obs?.feedback;
   $("held").textContent = fb ? objects[fb.held_object] || "无握持" : "未读取";
@@ -455,7 +536,7 @@ async function loadHistory() {
       ? runs
           .map(
             ({ summary: s, artifact_directory: path }) =>
-              `<article class="history-row"><div><b>${esc(s.run_id?.slice(0, 16) || "运行记录")}</b><small>合成场景 / simulation_only</small></div><span class="status ${esc(s.state)}">${esc(statuses[s.state])}</span><span>${s.confirmed_actions == null ? `${s.successful_commands ?? 0} 已执行` : `${s.confirmed_actions} / 6 已确认`}</span><code>${esc(s.error || path)}</code></article>`,
+              `<article class="history-row"><div><b>${esc(s.run_id?.slice(0, 16) || "运行记录")}</b><small>${esc(s.evidence_level || "历史运行")}</small></div><span class="status ${esc(s.state)}">${esc(statuses[s.state] || s.state)}</span><span>${s.confirmed_stages != null ? `${s.confirmed_stages} 实机阶段已验收` : s.simulated_verified_stages != null ? `${s.simulated_verified_stages} 模拟阶段已验收` : s.confirmed_actions == null ? "查看运行摘要" : `${s.confirmed_actions} / 6 已确认`}</span><code>${esc(s.error || path)}</code></article>`,
           )
           .join("")
       : `<p class="empty-history">暂无中枢运行记录。启动一个完整流程后，记录会自动保存在本机。</p>`;

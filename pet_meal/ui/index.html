@@ -28,14 +28,16 @@
           <span>03</span>测试报告
         </button>
         <button class="nav" data-tab="history"><span>04</span>运行记录</button>
+        <a class="nav operator-link" href="/operator"><span>05</span>语音与直控</a>
       </nav>
       <div class="side-note">
         <span class="signal"></span>本地控制服务
         <p>单任务执行 · 事件驱动监控<br />所有控制请求经过统一入口</p>
       </div>
       <div class="side-footer">
-        <span>G1 实机</span><b>未连接</b>
-        <p>硬件动作禁用 / ACT 未加载</p>
+        <span>G1 实机</span><b id="hardware-connection">未连接</b>
+        <p id="hardware-mode">硬件动作禁用</p>
+        <button id="hardware-probe" type="button" hidden>检查 HPU 与 XCU</button>
         <small>CONTROL CENTER &nbsp; V0.2</small>
       </div>
     </aside>
@@ -46,7 +48,7 @@
         >
         <div>
           <span id="connection" class="connection">连接中</span
-          ><span class="mode-label">SIMULATION ONLY</span
+          ><span id="mode-label" class="mode-label">SIMULATION ONLY</span
           ><time id="clock">—</time>
         </div>
       </header>
@@ -64,7 +66,7 @@
         <section id="view-overview" class="view">
           <div class="runbar">
             <div>
-              <span class="section-num">01</span><strong>宠物餐配置</strong
+              <span class="section-num">01</span><strong id="task-mode">宠物餐配置</strong
               ><span id="run-status" class="status">待启动</span>
             </div>
             <div class="run-controls">
@@ -86,7 +88,26 @@
               ><button id="reset" disabled>复位</button>
             </div>
           </div>
-          <div class="metrics">
+          <details class="panel tabletop-panel">
+            <summary>G1 桌面任务规划</summary>
+            <form id="tabletop-plan" class="run-controls">
+              <label>采集目录<input name="capture" required placeholder="相对于 artifacts" /></label>
+              <label>识别结果<input name="observation" required placeholder="相对于 artifacts 的 JSON" /></label>
+              <label>视觉选择<input name="vision_choice" placeholder="可选，选择结果 JSON" /></label>
+              <label>任务<select name="skill">
+                <option value="shake_then_place">抓取、摇动并放回</option>
+                <option value="pick_place">抓取并放回</option>
+                <option value="grasp">抓取并试提</option>
+              </select></label>
+              <label>选择方式<select name="selector">
+                <option value="category">类别</option><option value="object_id">实例 ID</option>
+              </select></label>
+              <label>目标<input name="target" required value="bottle" /></label>
+              <button id="plan-task" type="submit">生成分段计划</button>
+            </form>
+            <p id="tabletop-result" class="muted" aria-live="polite">使用采集记录预览抓取，实机派发关闭。</p>
+          </details>
+          <div id="simulation-metrics" class="metrics">
             <div>
               <label>当前阶段</label><strong id="metric-state">等待任务</strong
               ><small id="stage-count">— / 09</small>
@@ -106,7 +127,7 @@
               ><small>实体机器人验收：未测试</small>
             </div>
           </div>
-          <div class="operation-grid">
+          <div id="simulation-operation" class="operation-grid">
             <section class="panel pipeline-panel">
               <div class="panel-head">
                 <h2>任务进度</h2>

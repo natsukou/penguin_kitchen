@@ -12,6 +12,8 @@ dependencies = ["numpy>=1.24,<3", "opencv-python>=4.8,<6"]
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "ruff>=0.9,<1"]
 vision = ["ultralytics>=8,<9"]
+nlp = ["torch>=2.6,<3", "transformers>=4.48,<5"]
+hpu = ["paramiko>=2.6,<5"]
 
 [project.scripts]
 pet-meal = "pet_meal.cli:main"

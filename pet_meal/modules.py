@@ -35,7 +35,7 @@ class ModuleRegistry:
             "description": "实机 SDK / 控制器",
             "status": "disabled",
             "last_event_utc": None,
-            "detail": "无机器人连接，动作未实现",
+            "detail": "等待 HPU/XCU 回执",
         }
         self.modules["act"] = {
             "id": "act",
@@ -55,6 +55,12 @@ class ModuleRegistry:
             "action_checked": ["safety"],
             "action_dispatched": ["control"],
             "action_confirmed": ["feedback"],
+            "task_target_resolved": ["vision", "policy"],
+            "task_candidate": ["decision"],
+            "task_stage_reviewed": ["safety"],
+            "hpu_stage_checked": ["hardware", "safety"],
+            "hpu_sdk_receipt": ["hardware", "control"],
+            "hpu_stage_verified": ["hardware", "feedback"],
             "run_started": ["recorder"],
             "run_finished": ["recorder"],
         }
