@@ -137,11 +137,11 @@ function composeInterface() {
   const cutting = document.createElement("section");
   cutting.id = "penguin-cutting";
   cutting.className = "cutting-screen";
-  cutting.innerHTML = `<div class="cutting-heading"><p class="kicker">GALBOT G1 / LIVE</p><h1>智能烹饪</h1><p>从场景观测到动作反馈，一屏完成启动、查看与停止。</p></div>`;
+  cutting.innerHTML = `<div class="cutting-heading"><p class="kicker">CoBot G1 / LIVE</p><h1>精密厨房 /「共膳」</h1><p>不成人，便盛饭。<br />精准照顾每一位家人的膳食需求。</p></div>`;
   while (overview.firstChild) cutting.append(overview.firstChild);
   home.append(cutting);
   overview.remove();
-  cutting.querySelector(".runbar strong").textContent = "GALBOT G1 烹饪任务";
+  cutting.querySelector(".runbar strong").textContent = "CoBot G1 烹饪任务";
   $("start").firstChild.textContent = "开始任务 ";
   home.append(cutting, menu, recipeDialog);
 
@@ -235,7 +235,7 @@ function setupSystemAccess() {
     } catch (error) {
       $("system-login-error").textContent =
         error instanceof SyntaxError
-          ? "请通过企鹅厨房控制服务打开此入口。"
+          ? "请通过共膳控制服务打开此入口。"
           : error.message;
       $("system-password").select();
     } finally {
@@ -774,15 +774,20 @@ $("close-recipe").onclick = () => $("recipe-dialog").close();
 $("recipe-dialog").onclick = e => {if(e.target === $("recipe-dialog")) {const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}};
 const homeTab = document.querySelector('[data-tab="home"]');
 const cuttingTab = document.querySelector("[data-scroll-cutting]");
-cuttingTab.onclick = () => {
+function scrollToHomeSection(id) {
   if (selectedView !== "home") selectTab("home");
-  requestAnimationFrame(() => $("penguin-cutting").scrollIntoView({behavior:"smooth",block:"start"}));
-};
+  const isMenu = id === "today-menu";
+  homeTab.classList.toggle("active", isMenu);
+  cuttingTab.classList.toggle("active", !isMenu);
+  requestAnimationFrame(() => $(id).scrollIntoView({behavior:"smooth",block:"start"}));
+}
+homeTab.onclick = () => scrollToHomeSection("today-menu");
+cuttingTab.onclick = () => scrollToHomeSection("penguin-cutting");
 new IntersectionObserver(([entry]) => {
   if (selectedView !== "home") return;
-  cuttingTab.classList.toggle("active", entry.isIntersecting && entry.intersectionRatio > .2);
-  homeTab.classList.toggle("active", !entry.isIntersecting || entry.intersectionRatio <= .2);
-}, {threshold:[.2], rootMargin:"-64px 0px 0px"}).observe($("penguin-cutting"));
+  cuttingTab.classList.toggle("active", entry.isIntersecting);
+  homeTab.classList.toggle("active", !entry.isIntersecting);
+}, {threshold:[0], rootMargin:"-64px 0px 0px"}).observe($("penguin-cutting"));
 renderKitchen();
 renderScene(current);
 window.setInterval(() => {
