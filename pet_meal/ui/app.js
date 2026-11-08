@@ -118,11 +118,20 @@ let demoFrameIndex = 0;
 
 function composeInterface() {
   const home = $("view-home");
+  const heading = home.querySelector(".kitchen-heading");
+  const kitchenLayout = home.querySelector(".kitchen-layout");
+  const recipeDialog = $("recipe-dialog");
+  const intro = document.createElement("section");
+  intro.id = "home-intro";
+  intro.className = "home-intro";
+  intro.append(heading);
+
   const menu = document.createElement("section");
   menu.id = "today-menu";
   menu.className = "menu-screen";
-  while (home.firstChild) menu.append(home.firstChild);
-  home.append(menu);
+  menu.innerHTML = `<div class="menu-section-heading"><div><p class="kicker">TODAY'S TABLE / RECIPES</p><h2>今日餐谱</h2></div><p>看看眼前的食材，再挑一道适合今天的做法。</p></div>`;
+  menu.append(kitchenLayout);
+  home.replaceChildren(intro);
 
   const overview = $("view-overview");
   const cutting = document.createElement("section");
@@ -134,6 +143,7 @@ function composeInterface() {
   overview.remove();
   cutting.querySelector(".runbar strong").textContent = "企鹅切菜任务";
   $("start").firstChild.textContent = "开始切菜 ";
+  home.append(cutting, menu, recipeDialog);
 
   const system = document.createElement("section");
   system.id = "view-system";
