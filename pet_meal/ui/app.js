@@ -88,6 +88,60 @@ let current = null,
   rawVersion = "",
   selectedView = "home",
   sceneSignature = "";
+
+function composeInterface() {
+  const home = $("view-home");
+  const menu = document.createElement("section");
+  menu.id = "today-menu";
+  menu.className = "menu-screen";
+  while (home.firstChild) menu.append(home.firstChild);
+  home.append(menu);
+
+  const overview = $("view-overview");
+  const cutting = document.createElement("section");
+  cutting.id = "penguin-cutting";
+  cutting.className = "cutting-screen";
+  cutting.innerHTML = `<div class="cutting-heading"><p class="kicker">PENGUIN KITCHEN / LIVE</p><h1>企鹅切菜</h1><p>从场景观测到动作反馈，一屏完成启动、查看与停止。</p></div>`;
+  while (overview.firstChild) cutting.append(overview.firstChild);
+  home.prepend(cutting);
+  overview.remove();
+  cutting.querySelector(".runbar strong").textContent = "企鹅切菜任务";
+  $("start").firstChild.textContent = "开始切菜 ";
+
+  const system = document.createElement("section");
+  system.id = "view-system";
+  system.className = "view system-view";
+  system.hidden = true;
+  system.innerHTML = `<div class="system-heading"><p class="kicker">SYSTEM / DIAGNOSTICS</p><h1>系统</h1><p>面向维护与诊断的信息默认折叠，需要时再展开。</p></div>`;
+  const diagnostics = document.createElement("details");
+  diagnostics.className = "system-fold";
+  diagnostics.innerHTML = `<summary><span>任务诊断<small>目标定位、事件流与结果 JSON</small></span><b>展开</b></summary>`;
+  const diagnosticsBody = document.createElement("div");
+  diagnosticsBody.className = "system-fold-body";
+  diagnosticsBody.append(cutting.querySelector(".bottom-grid"));
+  diagnostics.append(diagnosticsBody);
+  system.append(diagnostics);
+  const groups = [
+    ["view-modules", "模块与拓扑", "服务状态、数据流与适配边界"],
+    ["view-validation", "测试与验证", "软件闭环、视觉样例与故障测试"],
+    ["view-history", "运行记录", "最近任务结果与持久化证据"],
+  ];
+  groups.forEach(([id, title, description]) => {
+    const source = $(id);
+    const fold = document.createElement("details");
+    fold.className = "system-fold";
+    fold.innerHTML = `<summary><span>${title}<small>${description}</small></span><b>展开</b></summary>`;
+    const body = document.createElement("div");
+    body.className = "system-fold-body";
+    while (source.firstChild) body.append(source.firstChild);
+    fold.append(body);
+    system.append(fold);
+    source.remove();
+  });
+  document.querySelector("main > footer").before(system);
+}
+
+composeInterface();
 $("scenario").innerHTML = Object.entries(faults)
   .map(([key, label]) => `<option value="${key}">${label}</option>`)
   .join("");
@@ -161,37 +215,31 @@ document.querySelectorAll("[data-scene]").forEach(
 );
 function selectTab(name) {
   selectedView = name;
+  window.scrollTo(0, 0);
   document.body.classList.toggle("home-page", name === "home");
-  $("operations-heading").hidden = name === "home";
+  $("operations-heading").hidden = true;
   document
     .querySelectorAll(".view")
     .forEach((v) => (v.hidden = v.id !== `view-${name}`));
   document
     .querySelectorAll("[data-tab]")
     .forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelector("[data-scroll-menu]").classList.remove("active");
   $("breadcrumb").textContent = {
-    home: "今日餐桌",
-    overview: "任务运行",
-    modules: "模块拓扑",
-    validation: "测试报告",
-    history: "运行记录",
+    home: "企鹅切菜",
+    system: "系统",
   }[name];
-  if (name === "validation") {
+  if (name === "system") {
     loadValidation();
     loadVisionEvidence();
     loadRelevanceEvidence();
+    loadHistory();
   }
-  if (name === "history") loadHistory();
   if (current) render(current);
 }
 function render(data) {
   current = data;
   if (data.control_token) token = data.control_token;
-  if (selectedView === "home") {
-    if (!$("live-observation").hidden) renderScene(data);
-    return;
-  }
-  if (selectedView === "history" || selectedView === "validation") return;
   const index = data.sequence.indexOf(data.state),
     finished = data.status === "complete";
   $("run-status").textContent = statuses[data.status] || data.status;
@@ -482,7 +530,7 @@ async function poll() {
   try {
     const data = await api("/api/status");
     render(data);
-    if (selectedView === "overview" || selectedView === "modules") {
+    if (selectedView === "home" || selectedView === "system") {
       const stream = await api(`/api/events?after=${cursor}`);
       if (stream.truncated) logRows = [];
       if (stream.events.length) {
@@ -500,7 +548,7 @@ async function poll() {
       (id) => ($(id).disabled = true),
     );
   }
-  const interval = document.hidden ? 5000 : selectedView === "overview" || (selectedView === "home" && !$("live-observation").hidden) ? 750 : 2000;
+  const interval = document.hidden ? 5000 : selectedView === "home" ? 750 : 2000;
   setTimeout(poll, interval);
 }
 poll();
@@ -581,14 +629,17 @@ $("all-ingredients").onclick = () => {kitchenIngredient=null; kitchenBatch=0; re
 $("more-recipes").onclick = () => {kitchenBatch++; renderKitchen();};
 $("close-recipe").onclick = () => $("recipe-dialog").close();
 $("recipe-dialog").onclick = e => {if(e.target === $("recipe-dialog")) {const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}};
-$("live-observation").append(document.querySelector(".scene-panel"));
-document.querySelectorAll("[data-observation]").forEach(b => b.onclick = () => {
-  const live=b.dataset.observation === "live";
-  $("ingredient-projection").hidden=live; $("live-observation").hidden=!live;
-  document.querySelector(".demo-label").textContent=live ? "模拟器观测" : "演示场景";
-  if (live) renderScene(current);
-  document.querySelectorAll("[data-observation]").forEach(other=>{other.classList.toggle("selected",other===b);other.setAttribute("aria-pressed",String(other===b));});
-});
+const homeTab = document.querySelector('[data-tab="home"]');
+const menuTab = document.querySelector("[data-scroll-menu]");
+menuTab.onclick = () => {
+  if (selectedView !== "home") selectTab("home");
+  requestAnimationFrame(() => $("today-menu").scrollIntoView({behavior:"smooth",block:"start"}));
+};
+new IntersectionObserver(([entry]) => {
+  if (selectedView !== "home") return;
+  menuTab.classList.toggle("active", entry.isIntersecting && entry.intersectionRatio > .2);
+  homeTab.classList.toggle("active", !entry.isIntersecting || entry.intersectionRatio <= .2);
+}, {threshold:[.2], rootMargin:"-64px 0px 0px"}).observe($("today-menu"));
 renderKitchen();
 
 
