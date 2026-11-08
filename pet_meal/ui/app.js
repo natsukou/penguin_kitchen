@@ -137,12 +137,12 @@ function composeInterface() {
   const cutting = document.createElement("section");
   cutting.id = "penguin-cutting";
   cutting.className = "cutting-screen";
-  cutting.innerHTML = `<div class="cutting-heading"><p class="kicker">PENGUIN KITCHEN / LIVE</p><h1>企鹅切菜</h1><p>从场景观测到动作反馈，一屏完成启动、查看与停止。</p></div>`;
+  cutting.innerHTML = `<div class="cutting-heading"><p class="kicker">GALBOT G1 / LIVE</p><h1>智能烹饪</h1><p>从场景观测到动作反馈，一屏完成启动、查看与停止。</p></div>`;
   while (overview.firstChild) cutting.append(overview.firstChild);
   home.append(cutting);
   overview.remove();
-  cutting.querySelector(".runbar strong").textContent = "企鹅切菜任务";
-  $("start").firstChild.textContent = "开始切菜 ";
+  cutting.querySelector(".runbar strong").textContent = "GALBOT G1 烹饪任务";
+  $("start").firstChild.textContent = "开始任务 ";
   home.append(cutting, menu, recipeDialog);
 
   const system = document.createElement("section");
