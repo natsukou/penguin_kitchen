@@ -21,7 +21,7 @@ def server(tmp_path, config):
     thread.join(2)
 
 
-def request(server, method, path, payload=None, token=None, origin=None, host=None):
+def request(server, method, path, payload=None, token=None, origin=None, host=None, cookie=None):
     connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=4)
     headers = {}
     if payload is not None:
@@ -32,10 +32,27 @@ def request(server, method, path, payload=None, token=None, origin=None, host=No
         headers["Origin"] = origin
     if host:
         headers["Host"] = host
+    if cookie:
+        headers["Cookie"] = cookie
     connection.request(method, path, json.dumps(payload) if payload is not None else None, headers)
     response = connection.getresponse()
     data = response.read()
     result = response.status, data
+    connection.close()
+    return result
+
+
+def system_login(server, password="1234", host=None):
+    connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=4)
+    headers = {"Content-Type": "application/json"}
+    if host:
+        headers["Host"] = host
+    connection.request(
+        "POST", "/api/system-login", json.dumps({"password": password}), headers
+    )
+    response = connection.getresponse()
+    response.read()
+    result = response.status, response.getheader("Set-Cookie", "").split(";", 1)[0]
     connection.close()
     return result
 
@@ -53,22 +70,26 @@ def test_dashboard_serves_nutrition_and_recipe_images(server):
     status, body = request(server, "GET", "/")
     assert status == 200 and b'href="/nutrition_ui/index.html"' in body
     status, body = request(server, "GET", "/nutrition_ui/index.html")
-    assert status == 200 and b'src="/nutrition_ui/app.js"' in body
+    assert status == 200 and b'src="/nutrition_ui/app.js?' in body
     assert request(server, "GET", "/nutrition_ui/app.js")[0] == 200
     assert request(server, "GET", "/nutrition_ui/style.css")[0] == 200
     status, body = request(server, "GET", "/images/raw-tofu.ad4e6520250f.webp")
     assert status == 200 and body[:4] == b"RIFF" and body[8:12] == b"WEBP"
+    status, body = request(server, "GET", "/images/human-demo-pour-01.jpg")
+    assert status == 200 and body[:2] == b"\xff\xd8"
     assert request(server, "GET", "/images/missing.webp")[0] == 404
     assert request(server, "GET", "/images/../server.py")[0] == 404
 
 
 def test_relevance_reports_are_read_only_and_distinguish_missing_data(server):
-    status, body = request(server, "GET", "/api/bailian-vision")
+    login_status, cookie = system_login(server)
+    assert login_status == 200
+    status, body = request(server, "GET", "/api/bailian-vision", cookie=cookie)
     assert status == 200 and json.loads(body) == {"available": False}
     directory = server.hub.workspace / "artifacts/relevance"
     directory.mkdir(parents=True)
     (directory / "fixtures.json").write_text('{"source":"offline_fixtures","passed":6}')
-    status, body = request(server, "GET", "/api/relevance-test")
+    status, body = request(server, "GET", "/api/relevance-test", cookie=cookie)
     assert status == 200 and json.loads(body)["source"] == "offline_fixtures"
     assert not server.hub.snapshot()["active"]
 
@@ -95,10 +116,31 @@ def test_api_full_flow_and_result_export(server):
         == 200
     )
     server.hub.wait()
-    status, body = request(server, "GET", "/api/summary")
+    login_status, cookie = system_login(server)
+    assert login_status == 200
+    status, body = request(server, "GET", "/api/summary", cookie=cookie)
     assert status == 200 and json.loads(body)["success"] is True
     assert request(server, "GET", "/api/frame")[1].startswith(b"\x89PNG")
-    assert len(json.loads(request(server, "GET", "/api/runs")[1])) == 1
+    assert len(json.loads(request(server, "GET", "/api/runs", cookie=cookie)[1])) == 1
+
+
+def test_system_routes_require_system_host_and_password(server):
+    assert request(server, "GET", "/api/validation")[0] == 401
+    assert system_login(server, "0000")[0] == 401
+    assert system_login(server, host="pkitchen.ai-lux.org")[0] == 404
+    status, cookie = system_login(server)
+    assert status == 200 and cookie.startswith("pkitchen_system=")
+    assert request(server, "GET", "/api/validation", cookie=cookie)[0] == 200
+    assert (
+        request(
+            server,
+            "GET",
+            "/api/validation",
+            host="pkitchen.ai-lux.org",
+            cookie=cookie,
+        )[0]
+        == 404
+    )
 
 
 @pytest.mark.parametrize(

@@ -2,8 +2,10 @@
 
 import hmac
 import json
+import os
 import re
 import secrets
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -20,6 +22,17 @@ STATIC_ROUTES = {
     "/nutrition_ui/app.js": ("nutrition_ui/app.js", "text/javascript; charset=utf-8"),
     "/nutrition_ui/style.css": ("nutrition_ui/style.css", "text/css; charset=utf-8"),
 }
+SYSTEM_HOST = "sys.pkitchen.ai-lux.org"
+PUBLIC_HOST = "pkitchen.ai-lux.org"
+SYSTEM_API_ROUTES = {
+    "/api/runs",
+    "/api/validation",
+    "/api/vision-sample",
+    "/api/relevance-test",
+    "/api/bailian-vision",
+    "/api/vision-sample.jpg",
+    "/api/summary",
+}
 
 
 class HubServer(ThreadingHTTPServer):
@@ -28,11 +41,29 @@ class HubServer(ThreadingHTTPServer):
     def __init__(self, hub: ControlHub, port: int = 8765):
         self.hub = hub
         self.token = secrets.token_urlsafe(32)
+        self.system_session = secrets.token_urlsafe(32)
+        self.system_password = os.getenv("PKITCHEN_SYSTEM_PASSWORD", "1234")
         super().__init__(("127.0.0.1", port), HubHandler)
 
     def allowed_hosts(self):
         port = self.server_address[1]
-        return {f"127.0.0.1:{port}", f"localhost:{port}"}
+        return {
+            f"127.0.0.1:{port}",
+            f"localhost:{port}",
+            "127.0.0.1",
+            "localhost",
+            PUBLIC_HOST,
+            SYSTEM_HOST,
+        }
+
+    def allowed_origins(self):
+        port = self.server_address[1]
+        return {
+            f"http://127.0.0.1:{port}",
+            f"http://localhost:{port}",
+            f"https://{PUBLIC_HOST}",
+            f"https://{SYSTEM_HOST}",
+        }
 
 
 class HubHandler(BaseHTTPRequestHandler):
@@ -41,7 +72,13 @@ class HubHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-    def reply(self, data, status=200, content_type="application/json; charset=utf-8"):
+    def reply(
+        self,
+        data,
+        status=200,
+        content_type="application/json; charset=utf-8",
+        headers=None,
+    ):
         if isinstance(data, (dict, list)):
             data = json.dumps(data, ensure_ascii=False, allow_nan=False).encode("utf-8")
         self.send_response(status)
@@ -57,6 +94,8 @@ class HubHandler(BaseHTTPRequestHandler):
                 "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
             ),
         )
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         try:
             self.wfile.write(data)
@@ -64,8 +103,34 @@ class HubHandler(BaseHTTPRequestHandler):
             pass
 
     def valid_host(self):
-        if self.headers.get("Host") not in self.server.allowed_hosts():
+        host = self.headers.get("Host", "").lower()
+        hostname = host.rsplit(":", 1)[0]
+        if host not in self.server.allowed_hosts() and hostname not in self.server.allowed_hosts():
             self.reply({"error": "Invalid local host"}, 403)
+            return False
+        return True
+
+    def hostname(self):
+        return self.headers.get("Host", "").lower().rsplit(":", 1)[0]
+
+    def system_session_valid(self):
+        cookie = SimpleCookie()
+        try:
+            cookie.load(self.headers.get("Cookie", ""))
+            supplied = cookie.get("pkitchen_system")
+            return bool(
+                supplied
+                and hmac.compare_digest(supplied.value, self.server.system_session)
+            )
+        except (KeyError, TypeError):
+            return False
+
+    def require_system_session(self):
+        if self.hostname() not in {SYSTEM_HOST, "127.0.0.1", "localhost"}:
+            self.reply({"error": "System routes are available on the system host only"}, 404)
+            return False
+        if not self.system_session_valid():
+            self.reply({"error": "System authentication required"}, 401)
             return False
         return True
 
@@ -90,7 +155,11 @@ class HubHandler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         hub = self.server.hub
-        if parsed.path == "/api/status":
+        if parsed.path == "/api/system-session":
+            self.reply({"authenticated": self.system_session_valid()})
+        elif parsed.path in SYSTEM_API_ROUTES and not self.require_system_session():
+            return
+        elif parsed.path == "/api/status":
             self.reply({**hub.snapshot(), "control_token": self.server.token})
         elif parsed.path == "/api/events":
             try:
@@ -127,8 +196,15 @@ class HubHandler(BaseHTTPRequestHandler):
             self.reply(hub.snapshot().get("summary") or {"available": False})
         elif parsed.path in STATIC_ROUTES:
             self.static_file(*STATIC_ROUTES[parsed.path])
-        elif re.fullmatch(r"/images/[a-z0-9][a-z0-9.-]*\.webp", parsed.path):
-            self.static_file(parsed.path[1:], "image/webp")
+        elif re.fullmatch(r"/images/[a-z0-9][a-z0-9.-]*\.(?:webp|jpg|jpeg|png)", parsed.path):
+            suffix = Path(parsed.path).suffix.lower()
+            content_type = {
+                ".webp": "image/webp",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+            }[suffix]
+            self.static_file(parsed.path[1:], content_type)
         else:
             self.reply({"error": "Not found"}, 404)
 
@@ -136,14 +212,45 @@ class HubHandler(BaseHTTPRequestHandler):
         if not self.valid_host():
             return
         origin = self.headers.get("Origin")
-        if origin and origin not in {f"http://{h}" for h in self.server.allowed_hosts()}:
+        if origin and origin not in self.server.allowed_origins():
             self.reply({"error": "Cross-origin control is disabled"}, 403)
+            return
+        parsed = urlparse(self.path)
+        if parsed.path == "/api/system-login":
+            if self.hostname() not in {SYSTEM_HOST, "127.0.0.1", "localhost"}:
+                self.reply({"error": "System authentication is unavailable on this host"}, 404)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 256:
+                    raise ValueError("Invalid request size")
+                if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
+                    raise ValueError("JSON content type required")
+                request = json.loads(self.rfile.read(length))
+                password = request.get("password") if isinstance(request, dict) else None
+                if not isinstance(password, str) or not hmac.compare_digest(
+                    password, self.server.system_password
+                ):
+                    self.reply({"error": "密码不正确，请重新输入。"}, 401)
+                    return
+                self.reply(
+                    {"authenticated": True},
+                    headers={
+                        "Set-Cookie": (
+                            f"pkitchen_system={self.server.system_session}; Path=/; "
+                            "HttpOnly; SameSite=Strict"
+                            + ("; Secure" if self.hostname() == SYSTEM_HOST else "")
+                        )
+                    },
+                )
+            except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                self.reply({"error": str(exc)}, 400)
             return
         supplied = self.headers.get("X-Control-Token", "")
         if not hmac.compare_digest(supplied, self.server.token):
             self.reply({"error": "Missing or invalid control token"}, 403)
             return
-        if self.path != "/api/commands":
+        if parsed.path != "/api/commands":
             self.reply({"error": "Not found"}, 404)
             return
         try:

@@ -89,6 +89,33 @@ let current = null,
   selectedView = "home",
   sceneSignature = "";
 
+const siteHost = window.location.hostname.toLowerCase();
+const isLocalSystemPreview =
+  ["127.0.0.1", "localhost"].includes(siteHost) &&
+  new URLSearchParams(window.location.search).get("system") === "1";
+const isSystemEntry = siteHost === "sys.pkitchen.ai-lux.org" || isLocalSystemPreview;
+const demoFrames = [
+  {
+    src: "/images/human-demo-pour-01.jpg",
+    title: "人工示例 · 倒入食材",
+    detail: "机器人相机暂无返回，显示人工制作片段",
+    alt: "人工制作示例：将食材倒入心形模具",
+  },
+  {
+    src: "/images/human-demo-pour-02.jpg",
+    title: "人工示例 · 整理成形",
+    detail: "示例片段仅用于填补相机空窗，不代表机器人动作",
+    alt: "人工制作示例：整理模具内的食材",
+  },
+  {
+    src: "/images/human-demo-finish.jpg",
+    title: "人工示例 · 完成摆盘",
+    detail: "接收到机器人画面后将自动切换为实时观测",
+    alt: "人工制作示例：完成心形菜品摆盘",
+  },
+];
+let demoFrameIndex = 0;
+
 function composeInterface() {
   const home = $("view-home");
   const menu = document.createElement("section");
@@ -103,7 +130,7 @@ function composeInterface() {
   cutting.className = "cutting-screen";
   cutting.innerHTML = `<div class="cutting-heading"><p class="kicker">PENGUIN KITCHEN / LIVE</p><h1>企鹅切菜</h1><p>从场景观测到动作反馈，一屏完成启动、查看与停止。</p></div>`;
   while (overview.firstChild) cutting.append(overview.firstChild);
-  home.prepend(cutting);
+  home.append(cutting);
   overview.remove();
   cutting.querySelector(".runbar strong").textContent = "企鹅切菜任务";
   $("start").firstChild.textContent = "开始切菜 ";
@@ -141,7 +168,81 @@ function composeInterface() {
   document.querySelector("main > footer").before(system);
 }
 
+function setupSystemAccess() {
+  const systemNav = document.querySelector('[data-tab="system"]');
+  systemNav.hidden = !isSystemEntry;
+  if (!isSystemEntry) return;
+
+  document.body.classList.add("system-entry");
+  document
+    .querySelectorAll('.sidebar nav > :not([data-tab="system"])')
+    .forEach((item) => (item.hidden = true));
+  document.querySelector(".brand").href = isLocalSystemPreview
+    ? "/"
+    : "https://pkitchen.ai-lux.org";
+
+  const gate = document.createElement("section");
+  gate.id = "system-login";
+  gate.className = "system-login";
+  gate.innerHTML = `<form class="system-login-card" autocomplete="off">
+    <p class="kicker">SYS.PKITCHEN / RESTRICTED</p>
+    <h1>系统入口</h1>
+    <p>维护与诊断页面仅对授权人员开放。</p>
+    <label for="system-password">访问密码</label>
+    <div class="system-password-row"><input id="system-password" name="password" type="password" inputmode="numeric" maxlength="12" autocomplete="current-password" required autofocus><button type="submit">进入系统 ↗</button></div>
+    <small id="system-login-error" role="alert" aria-live="polite"></small>
+  </form>`;
+  $("view-system").before(gate);
+
+  const unlock = () => {
+    document.body.classList.remove("system-locked");
+    gate.hidden = true;
+    selectTab("system");
+  };
+  document.body.classList.add("system-locked");
+  selectedView = "system-login";
+  $("view-home").hidden = true;
+  $("view-system").hidden = true;
+  const form = gate.querySelector("form");
+  const submit = form.querySelector('button[type="submit"]');
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const password = $("system-password").value;
+    submit.disabled = true;
+    submit.textContent = "验证中…";
+    $("system-login-error").textContent = "";
+    try {
+      const response = await fetch("/api/system-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const value = await response.json();
+      if (!response.ok || !value.authenticated) {
+        throw new Error(value.error || "密码验证失败");
+      }
+      unlock();
+    } catch (error) {
+      $("system-login-error").textContent =
+        error instanceof SyntaxError
+          ? "请通过企鹅厨房控制服务打开此入口。"
+          : error.message;
+      $("system-password").select();
+    } finally {
+      submit.disabled = false;
+      submit.textContent = "进入系统 ↗";
+    }
+  };
+  fetch("/api/system-session")
+    .then((response) => response.json())
+    .then((value) => {
+      if (value.authenticated) unlock();
+    })
+    .catch(() => {});
+}
+
 composeInterface();
+setupSystemAccess();
 $("scenario").innerHTML = Object.entries(faults)
   .map(([key, label]) => `<option value="${key}">${label}</option>`)
   .join("");
@@ -151,8 +252,16 @@ async function api(path, options = {}) {
     ...options,
     signal: AbortSignal.timeout(6000),
   });
-  const value = await response.json();
-  if (!response.ok) throw new Error(value.error || `HTTP ${response.status}`);
+  const body = await response.text();
+  let value;
+  try {
+    value = JSON.parse(body);
+  } catch (_) {
+    value = null;
+  }
+  if (!response.ok)
+    throw new Error(value?.error || "本地控制服务未连接");
+  if (value == null) throw new Error("控制服务返回了无法识别的数据");
   return value;
 }
 function toast(message) {
@@ -214,6 +323,8 @@ document.querySelectorAll("[data-scene]").forEach(
     }),
 );
 function selectTab(name) {
+  if (name === "system" && !isSystemEntry) return;
+  if (name === "system" && document.body.classList.contains("system-locked")) return;
   selectedView = name;
   window.scrollTo(0, 0);
   document.body.classList.toggle("home-page", name === "home");
@@ -224,9 +335,9 @@ function selectTab(name) {
   document
     .querySelectorAll("[data-tab]")
     .forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
-  document.querySelector("[data-scroll-menu]").classList.remove("active");
+  document.querySelector("[data-scroll-cutting]").classList.remove("active");
   $("breadcrumb").textContent = {
-    home: "企鹅切菜",
+    home: "今日餐谱",
     system: "系统",
   }[name];
   if (name === "system") {
@@ -312,13 +423,25 @@ function renderScene(data) {
   const signature = JSON.stringify([sceneMode, obs, data?.frame_available, data?.last_action]);
   if (signature === sceneSignature) return;
   sceneSignature = signature;
+  const useFallback =
+    !data?.frame_available && (sceneMode === "raw" || !obs);
+  $("camera-fallback").hidden = !useFallback;
   $("scene-empty").hidden =
-    sceneMode === "raw" ? Boolean(data?.frame_available) : Boolean(obs);
-  $("scene").hidden = sceneMode !== "projection";
-  $("raw-frame").hidden = sceneMode !== "raw" || !data?.frame_available;
+    useFallback || (sceneMode === "raw" ? Boolean(data?.frame_available) : Boolean(obs));
+  $("scene").hidden = useFallback || sceneMode !== "projection";
+  $("raw-frame").hidden = useFallback || sceneMode !== "raw" || !data?.frame_available;
   $("scene-source").textContent = data?.frame_available
     ? "合成 RGB-D / 最近观测"
-    : "等待第一帧";
+    : useFallback
+      ? "人工示例 / 相机未连接"
+      : "等待第一帧";
+  $("frame-counter").textContent = useFallback
+    ? "DEMO FOOTAGE / NOT LIVE"
+    : "base_link / m";
+  if (useFallback) {
+    renderDemoFrame();
+    return;
+  }
   if (data?.frame_available && sceneMode === "raw") {
     const version = `${data.run_id}-${obs?.frame_id ?? obs?.timestamp_ns ?? cursor}`;
     if (version !== rawVersion) {
@@ -357,6 +480,16 @@ function renderScene(data) {
     svg += `<path d="M${x - 9} ${y - 50}h18m-9-9v18" stroke="#bd4e2e" stroke-width="1.5"/><text x="${x + 15}" y="${y - 47}" font-size="8" fill="#bd4e2e">TARGET</text>`;
   }
   $("scene").innerHTML = svg;
+}
+function renderDemoFrame() {
+  const frame = demoFrames[demoFrameIndex];
+  $("camera-fallback-image").src = frame.src;
+  $("camera-fallback-image").alt = frame.alt;
+  $("fallback-title").textContent = frame.title;
+  $("fallback-detail").textContent = frame.detail;
+  $("fallback-progress").innerHTML = demoFrames
+    .map((_, index) => `<i class="${index === demoFrameIndex ? "active" : ""}"></i>`)
+    .join("");
 }
 function describe(row) {
   const p = row.payload || {};
@@ -630,17 +763,23 @@ $("more-recipes").onclick = () => {kitchenBatch++; renderKitchen();};
 $("close-recipe").onclick = () => $("recipe-dialog").close();
 $("recipe-dialog").onclick = e => {if(e.target === $("recipe-dialog")) {const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}};
 const homeTab = document.querySelector('[data-tab="home"]');
-const menuTab = document.querySelector("[data-scroll-menu]");
-menuTab.onclick = () => {
+const cuttingTab = document.querySelector("[data-scroll-cutting]");
+cuttingTab.onclick = () => {
   if (selectedView !== "home") selectTab("home");
-  requestAnimationFrame(() => $("today-menu").scrollIntoView({behavior:"smooth",block:"start"}));
+  requestAnimationFrame(() => $("penguin-cutting").scrollIntoView({behavior:"smooth",block:"start"}));
 };
 new IntersectionObserver(([entry]) => {
   if (selectedView !== "home") return;
-  menuTab.classList.toggle("active", entry.isIntersecting && entry.intersectionRatio > .2);
+  cuttingTab.classList.toggle("active", entry.isIntersecting && entry.intersectionRatio > .2);
   homeTab.classList.toggle("active", !entry.isIntersecting || entry.intersectionRatio <= .2);
-}, {threshold:[.2], rootMargin:"-64px 0px 0px"}).observe($("today-menu"));
+}, {threshold:[.2], rootMargin:"-64px 0px 0px"}).observe($("penguin-cutting"));
 renderKitchen();
+renderScene(current);
+window.setInterval(() => {
+  if ($("camera-fallback").hidden) return;
+  demoFrameIndex = (demoFrameIndex + 1) % demoFrames.length;
+  renderDemoFrame();
+}, 3600);
 
 
 const ingredientPhotos = {"raw-mushroom": {"src": "/images/raw-mushroom.25881edee45e.webp", "source": "https://unsplash.com/photos/RpyEAQS1I5g"}, "raw-tofu": {"src": "/images/raw-tofu.ad4e6520250f.webp", "source": "https://food.daily.co.kr/read3132202425"}, "raw-chicken": {"src": "/images/raw-chicken.b79c65be5b0c.webp", "source": "https://unsplash.com/photos/HsEnMY-ZYO8"}, "raw-vegetable": {"src": "/images/raw-vegetable.77eb9a323e12.webp", "source": "https://unsplash.com/photos/lzyaeNQ9wU4"}};

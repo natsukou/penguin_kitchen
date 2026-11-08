@@ -9,8 +9,8 @@
     />
     <title>企鹅厨房 · 企鹅切菜与今日餐谱</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/style.css" />
-    <script src="/app.js" defer></script>
+    <link rel="stylesheet" href="/style.css?v=20261108-5" />
+    <script src="/app.js?v=20261108-3" defer></script>
   </head>
   <body class="home-page">
     <aside class="sidebar">
@@ -20,10 +20,10 @@
       >
       <div class="side-label">YOUR EVERYDAY KITCHEN</div>
       <nav aria-label="主导航">
-        <button class="nav active" data-tab="home"><span>01</span>企鹅切菜<i>LIVE</i></button>
-        <button class="nav" data-scroll-menu><span>02</span>今日餐谱</button>
+        <button class="nav active" data-tab="home"><span>01</span>今日餐谱</button>
+        <button class="nav" data-scroll-cutting><span>02</span>企鹅切菜<i>LIVE</i></button>
         <a class="nav" href="/nutrition_ui/index.html"><span>03</span>饮食健康</a>
-        <button class="nav" data-tab="system"><span>04</span>系统</button>
+        <button class="nav" data-tab="system" hidden><span>04</span>系统</button>
       </nav>
       <div class="side-note">
         <span class="signal"></span>本地控制服务
@@ -104,12 +104,12 @@
                   id="scenario"
                   aria-label="测试场景"
                 ></select></label
-              ><label
-                >阶段间隔<select id="pace" aria-label="阶段间隔">
-                  <option value="0.4">0.4 秒</option>
-                  <option value="0.8" selected>0.8 秒</option>
-                  <option value="1.6">1.6 秒</option>
-                </select></label
+              ><label class="pace-control"
+                >每步等待时间<select id="pace" aria-label="每个动作完成后进入下一步前的等待时间">
+                  <option value="0.5">快速 · 等待 0.5 秒</option>
+                  <option value="1.0" selected>标准 · 等待 1.0 秒</option>
+                  <option value="1.8">慢速 · 等待 1.8 秒</option>
+                </select><small>每完成一个动作后，进入下一步前的演示等待时间</small></label
               ><button id="start" class="primary">
                 启动完整流程 <span>↗</span></button
               ><button id="pause" disabled>暂停</button
@@ -175,6 +175,19 @@
                   hidden
                   alt="最近一次保存的合成 RGB 原始帧"
                 />
+                <div id="camera-fallback" class="camera-fallback" hidden aria-live="polite">
+                  <img
+                    id="camera-fallback-image"
+                    src="/images/human-demo-pour-01.jpg"
+                    alt="人工制作示例：将食材倒入心形模具"
+                  />
+                  <span class="fallback-badge"><i></i>人工示例 · 非实时相机</span>
+                  <div class="fallback-caption">
+                    <strong id="fallback-title">人工示例 · 倒入食材</strong>
+                    <span id="fallback-detail">机器人相机暂无返回，显示人工制作片段</span>
+                  </div>
+                  <div id="fallback-progress" class="fallback-progress" aria-hidden="true"></div>
+                </div>
                 <div id="scene-empty">
                   <span>等待场景观测</span>
                   <p>启动流程后查看物体定位与执行反馈</p>
